@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vitiverse — An AI-Powered Holistic Support System for Vitiligo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans Devanagari', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            cream: '#fdfbf7',
+            warmAmber: '#f59e0b',
+            deepTeal: '#0d9488',
+            vitiIndigo: '#3730a3',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #fdfbf7;
+      color: #0f172a;
+      background-image:
+        radial-gradient(circle at 8% 4%, rgba(79, 70, 229, 0.08), transparent 34%),
+        radial-gradient(circle at 92% 10%, rgba(13, 148, 136, 0.08), transparent 38%),
+        radial-gradient(circle at 50% 60%, rgba(245, 158, 11, 0.05), transparent 50%);
+    }
+
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(226, 232, 240, 0.9);
+    }
+
+    @keyframes scan-line {
+      0% { top: 6%; opacity: 0.25; }
+      50% { top: 90%; opacity: 0.95; }
+      100% { top: 6%; opacity: 0.25; }
+    }
+    .scan-beam {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #2dd4bf, #818cf8, transparent);
+      box-shadow: 0 0 12px rgba(45, 212, 191, 0.9);
+      animation: scan-line 3s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      70% { transform: scale(1.35); opacity: 0; }
+      100% { transform: scale(1.35); opacity: 0; }
+    }
+    .voice-pulse::before {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 9999px;
+      border: 2px solid #0d9488;
+      animation: pulse-ring 1.6s infinite;
+    }
+
+    /* Custom range slider */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 8px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #fda4af, #fcd34d, #5eead4);
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 22px;
+      width: 22px;
+      border-radius: 50%;
+      background: #3730a3;
+      border: 3px solid #ffffff;
+      box-shadow: 0 2px 8px rgba(55, 48, 163, 0.4);
+      margin-top: -7px;
+    }
+  </style>
+</head>
+<body class="antialiased selection:bg-teal-500/20 selection:text-teal-950 overflow-x-hidden">
+
+  <!-- Toast Notification Banner -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-24 opacity-0 transition-all duration-300 pointer-events-none">
+    <div class="bg-slate-900 text-white border border-teal-500/40 rounded-2xl px-5 py-3.5 shadow-2xl flex items-center gap-3.5 max-w-sm">
+      <div class="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center shrink-0">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <div>
+        <p id="toast-title" class="text-sm font-semibold">Action Completed</p>
+        <p id="toast-sub" class="text-xs text-slate-300">Updated successfully in Vitiverse.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sticky Navigation Header -->
+  <header class="sticky top-0 z-40 border-b border-slate-200/80 bg-[#fdfbf7]/90 backdrop-blur-xl">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+      <!-- Brand Logo -->
+      <a href="#" class="flex items-center gap-2.5 group shrink-0">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-800 via-indigo-600 to-teal-500 flex items-center justify-center shadow-md shadow-indigo-900/20 group-hover:scale-105 transition-transform">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          </svg>
+        </div>
+        <div>
+          <span class="font-extrabold text-xl tracking-tight text-slate-900">Viti<span class="text-teal-600">verse</span></span>
+          <span class="hidden lg:inline-block ml-2 text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 font-semibold">
+            Holistic AI Ecosystem
+          </span>
+        </div>
+      </a>
+
+      <!-- Section Anchor Links -->
+      <nav class="hidden xl:flex items-center gap-6 text-sm font-medium text-slate-600">
+        <a href="#skin-analyzer" class="hover:text-teal-600 transition-colors" data-en="AI Skin Tracker" data-hi="AI त्वचा ट्रैकर">AI Skin Tracker</a>
+        <a href="#vitibuddy" class="hover:text-teal-600 transition-colors" data-en="VitiBuddy AI" data-hi="विटिबडी साथी">VitiBuddy AI</a>
+        <a href="#community-hub" class="hover:text-teal-600 transition-colors" data-en="Community Wall" data-hi="कम्युनिटी वॉल">Community Wall</a>
+        <a href="#resource-hub" class="hover:text-teal-600 transition-colors" data-en="Care & Myths" data-hi="देखभाल और मिथक">Care &amp; Myths</a>
+        <a href="#medical-access" class="hover:text-teal-600 transition-colors" data-en="Doctors & UV Log" data-hi="डॉक्टर और थेरेपी">Doctors &amp; UV Log</a>
+      </nav>
+
+      <!-- Language Toggle + Quick CTA -->
+      <div class="flex items-center gap-2.5">
+        <!-- English / Hindi Toggle -->
+        <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <button onclick="setLanguage('en')" id="lang-en" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-indigo-800 shadow-sm transition-all">
+            English
+          </button>
+          <button onclick="setLanguage('hi')" id="lang-hi" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">
+            हिंदी
+          </button>
+        </div>
+
+        <a href="#skin-analyzer" class="hidden sm:inline-flex px-4 py-2 rounded-xl bg-indigo-800 hover:bg-indigo-900 text-white font-semibold text-xs sm:text-sm shadow-md shadow-indigo-900/20 transition-all active:scale-95">
+          <span data-en="Scan Patch" data-hi="पैच स्कैन करें">Scan Patch</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- 1. HERO & USER IDENTITY PERSONALIZATION -->
+  <section class="relative pt-10 pb-14 lg:pt-16 lg:pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <div class="text-center max-w-4xl mx-auto">
+      <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-200 text-teal-800 text-xs font-semibold mb-5">
+        <span class="w-2 h-2 rounded-full bg-teal-500 animate-ping"></span>
+        <span data-en="Vitiverse — An AI-Powered Holistic Support System for Vitiligo" data-hi="विटिवर्स — विटिलिगो के लिए एक AI-संचालित समग्र सहायता प्रणाली">
+          Vitiverse — An AI-Powered Holistic Support System for Vitiligo
+        </span>
+      </div>
+
+      <h1 id="hero-title" class="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 leading-[1.13] mb-5">
+        Every Spot Tells a Story of <span class="bg-gradient-to-r from-indigo-800 via-teal-600 to-amber-500 bg-clip-text text-transparent">Strength &amp; Care.</span>
+      </h1>
+
+      <p id="hero-subtitle" class="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed mb-8">
+        Combining clinical AI patch tracking, empathetic emotional support, anonymous community stories, and verified dermatologists in one safe space.
+      </p>
+
+      <!-- User Identity Personalization Switcher (From Handwritten Notes) -->
+      <div class="max-w-2xl mx-auto mb-10">
+        <p class="text-xs font-mono uppercase tracking-wider text-slate-500 font-semibold mb-2.5" data-en="Personalize Your Vitiverse Experience:" data-hi="अपना अनुभव चुनें:">
+          Personalize Your Vitiverse Experience:
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+          <button onclick="setUserPersona('adult')" id="persona-adult" class="persona-btn py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-indigo-800 text-white shadow-sm flex items-center justify-center gap-2 transition-all">
+            <span>🧑🏽</span>
+            <span data-en="Adult / Self" data-hi="स्वयं (Adult)">Adult / Self</span>
+          </button>
+          <button onclick="setUserPersona('parent')" id="persona-parent" class="persona-btn py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all">
+            <span>👨🏽‍👧🏽</span>
+            <span data-en="Parent / Child Care" data-hi="माता-पिता (Child Care)">Parent / Child Care</span>
+          </button>
+          <button onclick="setUserPersona('newly')" id="persona-newly" class="persona-btn py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all">
+            <span>🌱</span>
+            <span data-en="Newly Diagnosed" data-hi="नया निदान (Newly Diagnosed)">Newly Diagnosed</span>
+          </button>
+        </div>
+        <!-- Dynamic Persona Guidance Banner -->
+        <div id="persona-banner" class="mt-3 px-4 py-2.5 rounded-xl bg-amber-50/90 border border-amber-200/90 text-xs sm:text-sm text-amber-950 font-medium">
+          ✨ Tailored for <strong>Self-Care &amp; Confidence</strong>: Track patch stability, explore occasion skin tints, and connect with peers.
+        </div>
+      </div>
+
+      <!-- 4 Holistic Pillars Quick Jump Strip -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 text-left">
+        <a href="#skin-analyzer" class="glass-panel rounded-2xl p-4 hover:border-teal-400 transition-all shadow-sm group">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-lg">🔬</span>
+            <span class="text-[10px] font-mono font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded">ACTIVE / STABLE</span>
+          </div>
+          <p class="font-bold text-sm text-slate-900 group-hover:text-teal-700">AI Skin Analyzer</p>
+          <p class="text-xs text-slate-500 mt-0.5">Detect patch stability &amp; UV borders</p>
+        </a>
+
+        <a href="#vitibuddy" class="glass-panel rounded-2xl p-4 hover:border-indigo-400 transition-all shadow-sm group">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-lg">🎙️</span>
+            <span class="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">VOICE + CHAT</span>
+          </div>
+          <p class="font-bold text-sm text-slate-900 group-hover:text-indigo-700">VitiBuddy Companion</p>
+          <p class="text-xs text-slate-500 mt-0.5">24/7 emotional support &amp; mood log</p>
+        </a>
+
+        <a href="#community-hub" class="glass-panel rounded-2xl p-4 hover:border-amber-400 transition-all shadow-sm group">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-lg">🤍</span>
+            <span class="text-[10px] font-mono font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded">ANONYMOUS MODE</span>
+          </div>
+          <p class="font-bold text-sm text-slate-900 group-hover:text-amber-700">Journey Wall &amp; Q&amp;A</p>
+          <p class="text-xs text-slate-500 mt-0.5">Safe stories &amp; peer experiences</p>
+        </a>
+
+        <a href="#medical-access" class="glass-panel rounded-2xl p-4 hover:border-teal-400 transition-all shadow-sm group">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-lg">🩺</span>
+            <span class="text-[10px] font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">NB-UVB LOG</span>
+          </div>
+          <p class="font-bold text-sm text-slate-900 group-hover:text-teal-700">Specialists &amp; Therapy</p>
+          <p class="text-xs text-slate-500 mt-0.5">Nearby experts &amp; session tracker</p>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. AI SKIN TRACKER & ANALYZER ('Active' vs 'Stable' Patch Detection) -->
+  <section id="skin-analyzer" class="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <div class="flex flex-col lg:flex-row lg:items-end justify-between mb-6 gap-4">
+      <div>
+        <span class="text-xs font-mono uppercase tracking-widest text-teal-700 font-bold">Module 01 • Computer Vision Dermoscopy</span>
+        <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mt-1" data-en="AI Skin Tracker & Patch Stability Analyzer" data-hi="AI त्वचा ट्रैकर और पैच स्थिरता विश्लेषक">
+          AI Skin Tracker &amp; Patch Stability Analyzer
+        </h2>
+        <p class="text-sm text-slate-600 mt-1">Analyze patch photos to classify whether borders are <strong>Active (Spreading)</strong> or <strong>Stable</strong> with Wood's lamp UV enhancement.</p>
+      </div>
+
+      <!-- Sample Photo & Upload Buttons -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button onclick="selectSkinCase('activePatch')" id="btn-activePatch" class="skin-case-btn px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-800 text-white shadow-sm transition-all">
+          Sample 1: Active Forearm Patch
+        </button>
+        <button onclick="selectSkinCase('stablePatch')" id="btn-stablePatch" class="skin-case-btn px-3.5 py-2 rounded-xl text-xs font-semibold bg-white text-slate-700 border border-slate-300 hover:border-teal-500 transition-all">
+          Sample 2: Stable Hand Patch
+        </button>
+        <label class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 cursor-pointer flex items-center gap-1.5 transition-all">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          <span>Upload Patch Photo</span>
+          <input type="file" accept="image/*" onchange="handlePhotoUpload(event)" class="hidden" />
+        </label>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+      <!-- Left: Interactive Lesion Viewer -->
+      <div class="lg:col-span-7 glass-panel rounded-3xl p-6 shadow-md flex flex-col justify-between">
+        <div>
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <div>
+              <h3 id="skin-case-title" class="text-base font-bold text-slate-900">Forearm Macule — Trichrome Margin Check</h3>
+              <p id="skin-case-sub" class="text-xs font-mono text-slate-500">Captured: Nov 15, 2026 • Auto-Calibrated</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="toggleVisionMode('seg')" id="btn-toggle-seg" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-teal-600 text-white shadow-sm transition-all">
+                AI Contour: ON
+              </button>
+              <button onclick="toggleVisionMode('uv')" id="btn-toggle-uv" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300 hover:border-indigo-400 transition-all">
+                Wood's Lamp UV
+              </button>
+            </div>
+          </div>
+
+          <!-- Visual Canvas Viewport -->
+          <div class="relative w-full h-72 sm:h-80 rounded-2xl overflow-hidden border border-slate-300 bg-[#b87b54]">
+            <div class="scan-beam"></div>
+
+            <!-- Uploaded User Image Preview (hidden unless user uploads a photo) -->
+            <img id="uploaded-preview" alt="Uploaded skin patch" class="hidden w-full h-full object-cover" />
+
+            <!-- Procedural Clinical Dermoscopy SVG -->
+            <svg id="skin-demo-svg" viewBox="0 0 600 340" class="w-full h-full object-cover">
+              <defs>
+                <pattern id="pores-pattern" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <circle cx="5" cy="6" r="0.7" fill="rgba(60, 20, 5, 0.16)" />
+                  <circle cx="15" cy="14" r="0.6" fill="rgba(60, 20, 5, 0.14)" />
+                </pattern>
+                <radialGradient id="patch-day" cx="50%" cy="50%" r="55%">
+                  <stop offset="0%" stop-color="#faede2" />
+                  <stop offset="78%" stop-color="#f2dcc9" />
+                  <stop offset="100%" stop-color="#e3bfa0" />
+                </radialGradient>
+                <radialGradient id="patch-uv" cx="50%" cy="50%" r="55%">
+                  <stop offset="0%" stop-color="#eef2ff" />
+                  <stop offset="70%" stop-color="#a5b4fc" />
+                  <stop offset="100%" stop-color="#4f46e5" />
+                </radialGradient>
+              </defs>
+              <rect id="svg-skin-bg" width="600" height="340" fill="#b87b54" />
+              <rect width="600" height="340" fill="url(#pores-pattern)" />
+              <g id="svg-patch-shape"></g>
+              <g id="svg-seg-overlay"></g>
+            </svg>
+
+            <div class="absolute bottom-3 left-3 bg-slate-950/80 backdrop-blur-md text-white px-3 py-1 rounded-lg text-[11px] font-mono border border-white/15">
+              <span id="viewport-hud">Mode: Daylight RGB + Boundary Segmentation</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+          <span>Tip: Compare monthly photos under consistent lighting to track repigmentation.</span>
+          <span class="font-mono text-[11px] text-teal-700 font-semibold">VitiVision CNN v2.4</span>
+        </div>
+      </div>
+
+      <!-- Right: Active vs Stable Classification Card -->
+      <div class="lg:col-span-5 glass-panel rounded-3xl p-6 shadow-md border-t-4 border-t-teal-600 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-xs font-mono uppercase tracking-wider font-bold text-slate-500">AI Diagnostic Output</span>
+            <span class="text-xs font-mono px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200 font-semibold">
+              Confidence: <span id="ai-confidence">95.8%</span>
+            </span>
+          </div>
+
+          <!-- Active vs Stable Status Pill Box -->
+          <div id="patch-status-card" class="rounded-2xl p-4 mb-5 bg-amber-50 border border-amber-300 transition-all">
+            <div class="flex items-center justify-between">
+              <span id="patch-status-label" class="text-sm font-extrabold uppercase tracking-wide text-amber-900 flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span>
+                Status: ACTIVE PATCH
+              </span>
+              <span id="patch-area-val" class="text-xs font-mono font-bold text-slate-800 bg-white/80 px-2.5 py-1 rounded-lg">4.6 cm²</span>
+            </div>
+            <p id="patch-status-desc" class="text-xs text-slate-700 mt-2 leading-relaxed">
+              Feathered trichrome border detected—indicating ongoing melanocyte activity. Early dermatologist consultation &amp; topical stabilization advised.
+            </p>
+          </div>
+
+          <!-- Stability Metrics -->
+          <div class="space-y-3 mb-5">
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="font-semibold text-slate-700">Border Sharpness Index</span>
+                <span id="metric-sharpness" class="font-mono font-bold text-amber-700">42% (Diffused Rim)</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
+                <div id="bar-sharpness" class="h-full bg-amber-500 rounded-full transition-all duration-500" style="width: 42%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="font-semibold text-slate-700">Repigmentation / Follicular Islands</span>
+                <span id="metric-follicular" class="font-mono font-bold text-teal-700">18% Early Islands</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
+                <div id="bar-follicular" class="h-full bg-teal-600 rounded-full transition-all duration-500" style="width: 18%"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actionable Care Tags -->
+          <div class="bg-slate-50 rounded-2xl p-3.5 border border-slate-200">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Recommended Next Steps</p>
+            <div id="patch-recommendations" class="flex flex-wrap gap-1.5">
+              <span class="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-700">SPF 50+ Broad Spectrum</span>
+              <span class="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-700">Share with Dermatologist</span>
+            </div>
+          </div>
+        </div>
+
+        <button onclick="saveToSkinDiary()" class="mt-5 w-full py-3 px-4 rounded-xl bg-indigo-800 hover:bg-indigo-900 text-white font-semibold text-sm shadow-md transition-all active:scale-98">
+          Save Scan to Monthly Skin Diary
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. HUMAN-CENTRIC AI COMPANION ('VitiBuddy') & MOOD JOURNAL -->
+  <section id="vitibuddy" class="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <div class="mb-6">
+      <span class="text-xs font-mono uppercase tracking-widest text-indigo-700 font-bold">Module 02 • Empathetic Mental Wellness</span>
+      <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mt-1" data-en="VitiBuddy — Human-Centric AI Companion & Mood Journal" data-hi="विटिबडी — आपका सहानुभूतिपूर्ण AI साथी और मूड जर्नल">
+        VitiBuddy — Human-Centric AI Companion &amp; Mood Journal
+      </h2>
+      <p class="text-sm text-slate-600 mt-1">All-age voice &amp; chat emotional companion trained to support confidence, school/workplace conversations, and daily mental wellbeing.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Left: Interactive Chat & Voice Companion (7 Cols) -->
+      <div class="lg:col-span-7 glass-panel rounded-3xl p-6 shadow-md flex flex-col justify-between">
+        <div>
+          <!-- Companion Header -->
+          <div class="flex items-center justify-between pb-4 border-b border-slate-200">
+            <div class="flex items-center gap-3">
+              <div class="relative w-11 h-11 rounded-2xl bg-gradient-to-br from-teal-500 to-indigo-700 text-white flex items-center justify-center font-bold text-lg shadow">
+                VB
+              </div>
+              <div>
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <span>VitiBuddy AI</span>
+                  <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Online • Multilingual</span>
+                </h3>
+                <p class="text-xs text-slate-500">Empathetic support for kids, parents &amp; adults</p>
+              </div>
+            </div>
+
+            <!-- Simulated Voice Companion Button -->
+            <button onclick="toggleVoiceAssistant()" id="voice-btn" class="relative px-3.5 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-bold flex items-center gap-2 transition-all">
+              <svg class="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+              <span id="voice-btn-text">Talk to VitiBuddy</span>
+            </button>
+          </div>
+
+          <!-- Chat History Container -->
+          <div id="chat-messages" class="h-64 overflow-y-auto py-4 space-y-3 pr-1">
+            <div class="flex items-start gap-2.5">
+              <div class="w-7 h-7 rounded-lg bg-teal-600 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">VB</div>
+              <div class="bg-slate-100 text-slate-800 rounded-2xl rounded-tl-none px-4 py-2.5 text-xs sm:text-sm max-w-md leading-relaxed">
+                Hi there! 💛 Whether you noticed a new spot today or just want someone who listens without judgment, I'm right here. How are you feeling?
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Prompts + Input Box -->
+        <div class="pt-3 border-t border-slate-200">
+          <div class="flex flex-wrap gap-1.5 mb-2.5">
+            <button onclick="sendQuickPrompt('People stare at my hands in public. How do I stay confident?')" class="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-[11px] font-medium transition-all">
+              "People stare in public..."
+            </button>
+            <button onclick="sendQuickPrompt('How do I explain vitiligo to my child so they feel proud?')" class="px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 text-[11px] font-medium transition-all">
+              "Explaining to my child..."
+            </button>
+            <button onclick="sendQuickPrompt('I feel anxious waiting for phototherapy results.')" class="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-medium transition-all">
+              "Anxious about treatment..."
+            </button>
+          </div>
+
+          <form onsubmit="handleChatSubmit(event)" class="flex items-center gap-2">
+            <input id="chat-input" type="text" placeholder="Type your message to VitiBuddy..." class="flex-1 px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-sm focus:outline-none focus:border-teal-600" />
+            <button type="submit" class="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-sm shadow-sm transition-all">
+              Send
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Right: Daily Mood Journal Check-In (5 Cols) -->
+      <div class="lg:col-span-5 glass-panel rounded-3xl p-6 shadow-md border-t-4 border-t-amber-500 flex flex-col justify-between">
+        <div>
+          <span class="text-xs font-mono uppercase tracking-wider font-bold text-amber-700">Emotional Wellbeing Check-In</span>
+          <h3 class="text-lg font-bold text-slate-900 mt-1">Daily Mood &amp; Confidence Journal</h3>
+          <p class="text-xs text-slate-500 mt-1">Tracking emotional patterns helps reduce stress triggers linked to flare-ups.</p>
+
+          <!-- Mood Emoji Display -->
+          <div class="my-5 p-4 rounded-2xl bg-amber-50/70 border border-amber-200 text-center">
+            <div id="mood-emoji" class="text-4xl mb-1">😊</div>
+            <p id="mood-label" class="text-sm font-bold text-slate-900">Hopeful &amp; Grounded (4 / 5)</p>
+            <input id="mood-slider" type="range" min="1" max="5" value="4" oninput="updateMoodDisplay(this.value)" class="w-full mt-3" />
+            <div class="flex justify-between text-[10px] font-mono text-slate-500 mt-1">
+              <span>Overwhelmed</span>
+              <span>Neutral</span>
+              <span>Empowered</span>
+            </div>
+          </div>
+
+          <!-- Journal Reflection Input -->
+          <div>
+            <label class="text-xs font-semibold text-slate-700 block mb-1.5">Today's Reflection Note (Private)</label>
+            <textarea id="mood-note" rows="2" placeholder="e.g., Went out without covering my patches today and felt great!" class="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm focus:outline-none focus:border-indigo-600"></textarea>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <button onclick="logMoodEntry()" class="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm shadow-sm transition-all">
+            Save Today's Mood Log
+          </button>
+          <div id="mood-history" class="mt-3 text-[11px] font-mono text-slate-500 text-center">
+            Last entry: 😊 Hopeful (4/5) • Streak: 6 Days
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. COMMUNITY HUB: JOURNEY WALL (WITH ANONYMOUS TOGGLE) & QUORA-STYLE Q&A -->
+  <section id="community-hub" class="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <div class="mb-6">
+      <span class="text-xs font-mono uppercase tracking-widest text-amber-700 font-bold">Module 03 • Safe Peer Connection</span>
+      <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mt-1" data-en="Vitiverse Community Hub — Journey Wall & Q&A" data-hi="विटिवर्स कम्युनिटी हब — अनुभव और प्रश्नोत्तर">
+        Vitiverse Community Hub — Journey Wall &amp; Q&amp;A
+      </h2>
+      <p class="text-sm text-slate-600 mt-1">Share openly with our <strong>Post as Anonymous</strong> privacy shield, or get practical answers from experienced community members.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Left: Journey Wall with Interactive Anonymous Post Composer (7 Cols) -->
+      <div class="lg:col-span-7 glass-panel rounded-3xl p-6 shadow-md">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-slate-900">✨ Journey Wall</h3>
+          <span class="text-xs font-mono text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200 font-semibold">Safe Space Verified</span>
+        </div>
+
+        <!-- Interactive Story Composer -->
+        <form onsubmit="publishJourneyStory(event)" class="bg-slate-50 rounded-2xl p-4 border border-slate-200 mb-5">
+          <input id="story-title" type="text" required placeholder="Story title (e.g., How I dealt with my first patch in college)" class="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm font-semibold mb-2 focus:outline-none focus:border-indigo-600" />
+          <textarea id="story-body" rows="2" required placeholder="Share your experience, tip, or small victory with the community..." class="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm mb-3 focus:outline-none focus:border-indigo-600"></textarea>
+
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <!-- Post as Anonymous Privacy Switch -->
+            <label class="inline-flex items-center gap-2.5 cursor-pointer select-none">
+              <input id="anon-toggle" type="checkbox" class="sr-only peer" checked />
+              <div class="w-10 h-5 bg-slate-300 rounded-full peer peer-checked:bg-indigo-800 relative transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:w-4 after:h-4 after:rounded-full after:transition-all peer-checked:after:translate-x-5"></div>
+              <span class="text-xs font-bold text-slate-700 flex items-center gap-1">
+                <span>🎭 Post as Anonymous</span>
+              </span>
+            </label>
+
+            <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-800 hover:bg-indigo-900 text-white text-xs font-bold shadow-sm transition-all">
+              Share Story
+            </button>
+          </div>
+        </form>
+
+        <!-- Dynamic Feed of Stories -->
+        <div id="journey-feed" class="space-y-3.5 max-h-96 overflow-y-auto pr-1">
+          <!-- Story 1 -->
+          <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+            <div class="flex items-center justify-between text-xs mb-1.5">
+              <span class="font-bold text-indigo-800 flex items-center gap-1.5">
+                <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-800 flex items-center justify-center text-[11px]">🎭</span>
+                Anonymous Member • Student, 21
+              </span>
+              <span class="text-slate-400 font-mono">2h ago</span>
+            </div>
+            <h4 class="font-bold text-sm text-slate-900">"How I dealt with my first patch before placements"</h4>
+            <p class="text-xs text-slate-600 mt-1 leading-relaxed">
+              When a small white spot appeared near my jawline, I panicked and hid indoors. Talking on Vitiverse helped me realize nobody judges confidence. I aced my interview last week without hiding!
+            </p>
+            <div class="mt-2.5 flex items-center gap-4 text-xs text-slate-500">
+              <button onclick="likeStory(this)" class="hover:text-teal-700 font-semibold flex items-center gap-1">💛 <span>48 Hearts</span></button>
+              <span class="font-mono text-[11px] text-teal-700">#FirstPatch #Confidence</span>
+            </div>
+          </div>
+
+          <!-- Story 2 -->
+          <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+            <div class="flex items-center justify-between text-xs mb-1.5">
+              <span class="font-bold text-teal-800 flex items-center gap-1.5">
+                <span class="w-6 h-6 rounded-full bg-teal-100 text-teal-800 flex items-center justify-center text-[11px]">MS</span>
+                Meera Sharma • Parent in Pune
+              </span>
+              <span class="text-slate-400 font-mono">1d ago</span>
+            </div>
+            <h4 class="font-bold text-sm text-slate-900">"Helping my 8-year-old love her 'constellation spots'"</h4>
+            <p class="text-xs text-slate-600 mt-1 leading-relaxed">
+              We started calling her hand patches her unique constellations. Having a pediatrician-approved guide for her school teachers made all the difference.
+            </p>
+            <div class="mt-2.5 flex items-center gap-4 text-xs text-slate-500">
+              <button onclick="likeStory(this)" class="hover:text-teal-700 font-semibold flex items-center gap-1">💛 <span>92 Hearts</span></button>
+              <span class="font-mono text-[11px] text-amber-700">#ParentCare #KidsVitiligo</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Quora-Style Q&A Forum (5 Cols) -->
+      <div class="lg:col-span-5 glass-panel rounded-3xl p-6 shadow-md flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-slate-900">💬 Community Q&amp;A Forum</h3>
+            <span class="text-[11px] font-mono text-slate-500">Peer + Expert Answers</span>
+          </div>
+
+          <div id="qa-list" class="space-y-3.5">
+            <!-- Q1 -->
+            <div class="bg-white rounded-2xl p-4 border border-slate-200">
+              <span class="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800">Phototherapy</span>
+              <h4 class="font-bold text-sm text-slate-900 mt-1.5">How many NB-UVB sessions did it take before you saw first pigment dots?</h4>
+              <p class="text-xs text-slate-600 mt-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                <strong class="text-teal-800">Top Answer (Rohan K., 4 yrs experience):</strong> For my facial patches, tiny brown dots around hair follicles started around session 16–20. Consistency and moisturizer right after sessions helped a lot!
+              </p>
+            </div>
+
+            <!-- Q2 -->
+            <div class="bg-white rounded-2xl p-4 border border-slate-200">
+              <span class="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">Daily Care</span>
+              <h4 class="font-bold text-sm text-slate-900 mt-1.5">Which sweat-proof skin tint works best for Indian summer weddings?</h4>
+              <p class="text-xs text-slate-600 mt-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                <strong class="text-teal-800">Top Answer (Ananya V.):</strong> Look for water-resistant dermablend camouflage creams set with translucent mineral powder—lasts 8+ hours without transferring onto outfits.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ask a Question Box -->
+        <form onsubmit="addCommunityQuestion(event)" class="mt-4 pt-3 border-t border-slate-200 flex gap-2">
+          <input id="qa-input" type="text" required placeholder="Ask the Vitiverse community..." class="flex-1 px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm focus:outline-none focus:border-teal-600" />
+          <button type="submit" class="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shrink-0">
+            Ask Q&amp;A
+          </button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. RESOURCE & CARE HUB: CAMOUFLAGE TINTS, MYTH VS FACT QUIZ & SUCCESS STORIES -->
+  <section id="resource-hub" class="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <div class="mb-6">
+      <span class="text-xs font-mono uppercase tracking-widest text-teal-700 font-bold">Module 04 • Education, Empowerment &amp; Style</span>
+      <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mt-1" data-en="Resource & Care Hub — Camouflage, Myth Buster & Heroes" data-hi="संसाधन और देखभाल केंद्र — कैमोफ्लाज, मिथक बनाम तथ्य और प्रेरक कहानियाँ">
+        Resource &amp; Care Hub — Camouflage, Myth Buster &amp; Heroes
+      </h2>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Card 1: Camouflage & Skin Tints Guide -->
+      <div class="glass-panel rounded-3xl p-6 shadow-md flex flex-col justify-between">
+        <div>
+          <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center text-lg font-bold mb-3">🎨</div>
+          <h3 class="text-lg font-bold text-slate-900">Camouflage &amp; Skin Tints</h3>
+          <p class="text-xs text-slate-600 mt-1 mb-4">Occasion-based makeup tutorials, waterproof skin dyes, and undertone matching guides.</p>
+
+          <div class="space-y-2.5">
+            <div class="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/80">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-900">1. Everyday Office / College Tint</span>
+                <span class="text-[10px] font-mono bg-white px-2 py-0.5 rounded text-amber-800 font-semibold">3-Min Guide</span>
+              </div>
+              <p class="text-[11px] text-slate-600 mt-1">Lightweight mineral BB + green color-corrector primer for natural, breathable coverage.</p>
+            </div>
+
+            <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-900">2. Weddings &amp; Festive Waterproof</span>
+                <span class="text-[10px] font-mono bg-white px-2 py-0.5 rounded text-indigo-800 font-semibold">12-Hr Hold</span>
+              </div>
+              <p class="text-[11px] text-slate-600 mt-1">High-pigment smudge-proof camouflage cream + setting spray tutorial for hands &amp; face.</p>
+            </div>
+
+            <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-900">3. DHA Semi-Permanent Skin Dyes</span>
+                <span class="text-[10px] font-mono bg-white px-2 py-0.5 rounded text-teal-800 font-semibold">3–5 Days</span>
+              </div>
+              <p class="text-[11px] text-slate-600 mt-1">Dermatologist-safe dihydroxyacetone stains that gradually blend borders without daily reapplication.</p>
+            </div>
+          </div>
+        </div>
+
+        <button onclick="showToast('Camouflage Shade Finder Opened', 'Interactive undertone matcher & video tutorials ready.')" class="mt-5 w-full py-2.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 font-bold text-xs transition-all">
+          Explore Shade Matcher &amp; Tutorials →
+        </button>
+      </div>
+
+      <!-- Card 2: Interactive Daily Myth vs. Fact Quiz (Dispelling Andhvishwas) -->
+      <div class="glass-panel rounded-3xl p-6 shadow-md border-t-4 border-t-indigo-700 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-800 flex items-center justify-center text-lg font-bold">🧠</div>
+            <span class="text-[11px] font-mono font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200">
+              Daily Quiz • Busting Myths
+            </span>
+          </div>
+          <h3 class="text-lg font-bold text-slate-900">Myth vs. Fact (अंधविश्वास निवारण)</h3>
+          <p class="text-xs text-slate-600 mt-1 mb-4">Tap an answer below to test your knowledge and bust common social superstitions.</p>
+
+          <!-- Quiz Card -->
+          <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+            <p id="quiz-question" class="text-sm font-bold text-slate-900 leading-snug mb-3">
+              "Drinking milk right after eating fish or sour foods causes Vitiligo."
+            </p>
+
+            <div class="grid grid-cols-2 gap-2.5 mb-3">
+              <button onclick="answerQuiz('MYTH')" class="py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold text-xs transition-all">
+                ❌ It's a MYTH
+              </button>
+              <button onclick="answerQuiz('FACT')" class="py-2 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs transition-all">
+                ✅ It's a FACT
+              </button>
+            </div>
+
+            <div id="quiz-feedback" class="hidden text-xs p-3 rounded-xl bg-white border border-indigo-200 text-slate-700 leading-relaxed">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+        <button onclick="nextQuizCard()" class="mt-5 w-full py-2.5 rounded-xl bg-indigo-800 hover:bg-indigo-900 text-white font-bold text-xs transition-all">
+          Next "Did You Know?" Card →
+        </button>
+      </div>
+
+      <!-- Card 3: Inspiring Success Stories (Global Icons to Local Heroes) -->
+      <div class="glass-panel rounded-3xl p-6 shadow-md flex flex-col justify-between">
+        <div>
+          <div class="w-10 h-10 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center text-lg font-bold mb-3">🌟</div>
+          <h3 class="text-lg font-bold text-slate-900">Role Models &amp; Local Heroes</h3>
+          <p class="text-xs text-slate-600 mt-1 mb-4">From international runways to everyday Indian achievers redefining beauty.</p>
+
+          <div class="space-y-3">
+            <div class="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-900 to-slate-900 text-white">
+              <span class="text-[10px] font-mono uppercase tracking-wider text-teal-300">Global Icon</span>
+              <h4 class="font-bold text-sm mt-0.5">Winnie Harlow — Supermodel &amp; Advocate</h4>
+              <p class="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                Turned childhood bullying into global runway representation, inspiring millions to embrace natural skin patterns unapologetically.
+              </p>
+            </div>
+
+            <div class="p-3.5 rounded-2xl bg-teal-50/80 border border-teal-200">
+              <span class="text-[10px] font-mono uppercase tracking-wider text-teal-800 font-bold">Local Hero • Bengaluru</span>
+              <h4 class="font-bold text-sm text-slate-900 mt-0.5">Aarav Deshmukh — Marathoner &amp; Educator</h4>
+              <p class="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                Runs awareness workshops across Indian schools proving vitiligo is purely autoimmune, non-contagious, and never a barrier to sports.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <button onclick="showToast('Hero Spotlight', 'Nominate a local vitiligo changemaker from your city!')" class="mt-5 w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs transition-all">
+          Read More Confidence Stories →
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. EXPERT & MEDICAL ACCESS: FIND A SPECIALIST & PHOTOTHERAPY TRACKER -->
+  <section id="medical-access" class="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+    <div class="mb-6">
+      <span class="text-xs font-mono uppercase tracking-widest text-indigo-700 font-bold">Module 05 • Clinical Care &amp; Treatment Continuity</span>
+      <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mt-1" data-en="Expert & Medical Access — Specialists & Phototherapy Log" data-hi="विशेषज्ञ और चिकित्सा पहुँच — डॉक्टर खोजें और फोटोथेरेपी ट्रैकर">
+        Expert &amp; Medical Access — Specialists &amp; Phototherapy Log
+      </h2>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Left: Find a Vitiligo Specialist Map & Directory (7 Cols) -->
+      <div class="lg:col-span-7 glass-panel rounded-3xl p-6 shadow-md">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">📍 Find a Vitiligo-Expert Dermatologist</h3>
+            <p class="text-xs text-slate-500">Verified pigment-disorder clinics with NB-UVB &amp; excimer laser facilities</p>
+          </div>
+          <span class="text-xs font-mono bg-indigo-50 text-indigo-800 px-3 py-1 rounded-full border border-indigo-200 font-semibold">
+            Showing Nearby Specialists
+          </span>
+        </div>
+
+        <!-- Interactive Stylized Radar Map -->
+        <div class="relative w-full h-48 rounded-2xl bg-slate-900 overflow-hidden border border-slate-700 mb-4 p-4 flex flex-col justify-between">
+          <!-- Map Grid Background -->
+          <svg class="absolute inset-0 w-full h-full opacity-25" viewBox="0 0 400 180">
+            <path d="M0 40 Q120 60 220 30 T400 50" stroke="#2dd4bf" stroke-width="2" fill="none" />
+            <path d="M40 0 L90 180 M200 0 L180 180 M310 0 L340 180" stroke="#6366f1" stroke-width="1.5" fill="none" />
+            <circle cx="200" cy="90" r="65" stroke="#2dd4bf" stroke-dasharray="4 4" fill="none" />
+          </svg>
+
+          <!-- Interactive Pins -->
+          <button onclick="highlightDoctor(0)" class="relative z-10 self-start ml-8 mt-2 px-3 py-1 rounded-full bg-teal-500 text-slate-950 font-bold text-[11px] shadow-lg hover:scale-105 transition-transform">
+            📍 Dr. Kavita Rao (1.8 km)
+          </button>
+          <button onclick="highlightDoctor(1)" class="relative z-10 self-end mr-10 px-3 py-1 rounded-full bg-amber-400 text-slate-950 font-bold text-[11px] shadow-lg hover:scale-105 transition-transform">
+            📍 DermaCare Pigment Center (3.2 km)
+          </button>
+          <div class="relative z-10 text-[11px] font-mono text-slate-300 bg-slate-950/70 px-2.5 py-1 rounded-lg self-start">
+            Your Location • 3 Verified Vitiligo Clinics within 5 km
+          </div>
+        </div>
+
+        <!-- Specialist Directory Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div id="doc-card-0" class="p-3.5 rounded-2xl bg-white border-2 border-teal-500 shadow-sm transition-all">
+            <div class="flex justify-between items-start">
+              <div>
+                <h4 class="font-bold text-sm text-slate-900">Dr. Kavita Rao, MD</h4>
+                <p class="text-[11px] text-slate-500">Pigment &amp; Phototherapy Specialist • 14 Yrs Exp</p>
+              </div>
+              <span class="text-xs font-bold text-amber-600">★ 4.9</span>
+            </div>
+            <div class="mt-2.5 flex items-center justify-between">
+              <span class="text-[10px] font-mono bg-teal-50 text-teal-800 px-2 py-0.5 rounded">NB-UVB Available</span>
+              <button onclick="bookDoctor('Dr. Kavita Rao')" class="px-3 py-1.5 rounded-xl bg-indigo-800 hover:bg-indigo-900 text-white text-xs font-bold transition-all">
+                Book Consult
+              </button>
+            </div>
+          </div>
+
+          <div id="doc-card-1" class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm transition-all">
+            <div class="flex justify-between items-start">
+              <div>
+                <h4 class="font-bold text-sm text-slate-900">Dr. Siddharth Nair, MD</h4>
+                <p class="text-[11px] text-slate-500">Pediatric &amp; Surgical Vitiligo • 11 Yrs Exp</p>
+              </div>
+              <span class="text-xs font-bold text-amber-600">★ 4.8</span>
+            </div>
+            <div class="mt-2.5 flex items-center justify-between">
+              <span class="text-[10px] font-mono bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded">Excimer 308nm</span>
+              <button onclick="bookDoctor('Dr. Siddharth Nair')" class="px-3 py-1.5 rounded-xl bg-indigo-800 hover:bg-indigo-900 text-white text-xs font-bold transition-all">
+                Book Consult
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Phototherapy Session Tracker (5 Cols) -->
+      <div class="lg:col-span-5 glass-panel rounded-3xl p-6 shadow-md border-t-4 border-t-teal-600 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-mono uppercase tracking-wider font-bold text-teal-700">Treatment Adherence</span>
+            <span id="session-badge" class="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
+              14 / 30 Sessions
+            </span>
+          </div>
+          <h3 class="text-lg font-bold text-slate-900">☀️ Phototherapy (NB-UVB) Tracker</h3>
+          <p class="text-xs text-slate-500 mt-1">Log your clinic or home UV sessions, exposure duration, and skin response.</p>
+
+          <!-- Progress Bar -->
+          <div class="my-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+            <div class="flex justify-between text-xs font-semibold mb-1.5">
+              <span>Cycle Progress</span>
+              <span id="session-percent" class="font-mono text-teal-700">47% Complete</span>
+            </div>
+            <div class="w-full h-3 rounded-full bg-slate-200 overflow-hidden">
+              <div id="session-progress-bar" class="h-full bg-gradient-to-r from-teal-500 to-indigo-700 rounded-full transition-all duration-500" style="width: 47%"></div>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-2 font-mono">Next Scheduled: Tuesday • 45 sec @ 311nm NB-UVB</p>
+          </div>
+
+          <!-- Recent Session Logs -->
+          <div id="session-log-list" class="space-y-2 max-h-36 overflow-y-auto text-xs">
+            <div class="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200">
+              <span class="font-semibold text-slate-800">Session #14 • 42 sec (420 mJ/cm²)</span>
+              <span class="text-emerald-600 font-mono text-[11px]">Mild Pink ✓</span>
+            </div>
+            <div class="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200">
+              <span class="font-semibold text-slate-800">Session #13 • 40 sec (400 mJ/cm²)</span>
+              <span class="text-slate-500 font-mono text-[11px]">No Irritation</span>
+            </div>
+          </div>
+        </div>
+
+        <button onclick="logPhototherapySession()" class="mt-5 w-full py-3 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm shadow-md transition-all active:scale-98">
+          + Log Today's Phototherapy Session
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-200 bg-white mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-lg bg-indigo-800 text-white font-bold text-xs flex items-center justify-center">V</div>
+        <span class="font-bold text-sm text-slate-900">Vitiverse</span>
+        <span class="text-xs text-slate-400">• An AI-Powered Holistic Support System for Vitiligo</span>
+      </div>
+      <p class="text-xs text-slate-500 text-center sm:text-right">
+        Built for compassionate clinical &amp; community care. Not a substitute for professional medical diagnosis.
+      </p>
+    </div>
+  </footer>
+
+  <!-- Interactive JavaScript Engine -->
+  <script>
+    // 1. Language Switcher (English / Hindi)
+    function setLanguage(lang) {
+      document.getElementById('lang-en').className = lang === 'en'
+        ? 'px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-indigo-800 shadow-sm transition-all'
+        : 'px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all';
+      document.getElementById('lang-hi').className = lang === 'hi'
+        ? 'px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-indigo-800 shadow-sm transition-all'
+        : 'px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all';
+
+      document.querySelectorAll('[data-en]').forEach(el => {
+        el.innerText = el.getAttribute(`data-${lang}`);
+      });
+
+      showToast(
+        lang === 'hi' ? 'भाषा बदली गई: हिंदी' : 'Language Switched: English',
+        lang === 'hi' ? 'विटिवर्स अब हिंदी में उपलब्ध है।' : 'Vitiverse interface set to English.'
+      );
+    }
+
+    // 2. User Identity Personalization Switcher
+    const PERSONA_DATA = {
+      adult: {
+        banner: '✨ Tailored for <strong>Self-Care & Confidence</strong>: Track patch stability, explore occasion skin tints, and connect with peers.'
+      },
+      parent: {
+        banner: '👨🏽‍👧🏽 Tailored for <strong>Parents & Child Care</strong>: Gentle explanations for kids, school awareness guides, and pediatric dermatologists.'
+      },
+      newly: {
+        banner: '🌱 Tailored for <strong>Newly Diagnosed</strong>: Step-by-step first-patch guide, myth busting, and calming support with VitiBuddy.'
+      }
+    };
+
+    function setUserPersona(key) {
+      ['adult', 'parent', 'newly'].forEach(p => {
+        const btn = document.getElementById(`persona-${p}`);
+        btn.className = p === key
+          ? 'persona-btn py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold bg-indigo-800 text-white shadow-sm flex items-center justify-center gap-2 transition-all'
+          : 'persona-btn py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all';
+      });
+      document.getElementById('persona-banner').innerHTML = PERSONA_DATA[key].banner;
+    }
+
+    // 3. AI Skin Tracker & Analyzer ('Active' vs 'Stable')
+    const SKIN_CASES = {
+      activePatch: {
+        title: 'Forearm Macule — Trichrome Margin Check',
+        sub: 'Captured: Nov 15, 2026 • Auto-Calibrated',
+        confidence: '95.8%',
+        status: 'ACTIVE',
+        label: 'Status: ACTIVE PATCH',
+        area: '4.6 cm²',
+        desc: 'Feathered trichrome border detected—indicating ongoing melanocyte activity. Early dermatologist consultation & topical stabilization advised.',
+        sharpnessText: '42% (Diffused Rim)',
+        sharpnessPct: '42%',
+        follicularText: '18% Early Islands',
+        follicularPct: '18%',
+        skinColor: '#b87b54',
+        uvColor: '#1e1b4b',
+        path: 'M185 95 C245 65, 375 75, 415 130 C445 175, 395 250, 310 260 C225 270, 155 215, 165 145 C168 118, 172 105, 185 95 Z',
+        recs: ['SPF 50+ Broad Spectrum', 'Share with Dermatologist', 'Avoid Skin Friction']
+      },
+      stablePatch: {
+        title: 'Dorsal Hand Patch — Well-Demarcated Border',
+        sub: 'Captured: Nov 15, 2026 • 6-Month Follow-up',
+        confidence: '97.4%',
+        status: 'STABLE',
+        label: 'Status: STABLE PATCH',
+        area: '3.2 cm²',
+        desc: 'Crisp, hyperpigmented border with zero new satellite spots over 6 months. Good response candidate for targeted NB-UVB phototherapy.',
+        sharpnessText: '91% (Crisp Margin)',
+        sharpnessPct: '91%',
+        follicularText: '54% Repigmenting',
+        follicularPct: '54%',
+        skinColor: '#9c623e',
+        uvColor: '#17143b',
+        path: 'M160 115 C210 85, 320 90, 365 135 C405 175, 375 240, 295 245 C215 250, 145 205, 150 150 C152 130, 154 120, 160 115 Z',
+        recs: ['Continue NB-UVB Schedule', 'Moisturize Post-UV', 'Monthly Photo Check']
+      }
+    };
+
+    let currentSkinKey = 'activePatch';
+    let segEnabled = true;
+    let uvEnabled = false;
+    let isCustomUpload = false;
+
+    function selectSkinCase(key) {
+      currentSkinKey = key;
+      isCustomUpload = false;
+      document.getElementById('uploaded-preview').classList.add('hidden');
+      document.getElementById('skin-demo-svg').classList.remove('hidden');
+
+      ['activePatch', 'stablePatch'].forEach(k => {
+        document.getElementById(`btn-${k}`).className = k === key
+          ? 'skin-case-btn px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-800 text-white shadow-sm transition-all'
+          : 'skin-case-btn px-3.5 py-2 rounded-xl text-xs font-semibold bg-white text-slate-700 border border-slate-300 hover:border-teal-500 transition-all';
+      });
+      renderSkinView();
+    }
+
+    function toggleVisionMode(mode) {
+      if (mode === 'seg') {
+        segEnabled = !segEnabled;
+        const btn = document.getElementById('btn-toggle-seg');
+        btn.innerText = segEnabled ? 'AI Contour: ON' : 'AI Contour: OFF';
+        btn.className = segEnabled
+          ? 'px-3 py-1.5 rounded-xl text-xs font-semibold bg-teal-600 text-white shadow-sm transition-all'
+          : 'px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300 transition-all';
+      } else if (mode === 'uv') {
+        uvEnabled = !uvEnabled;
+        const btn = document.getElementById('btn-toggle-uv');
+        btn.className = uvEnabled
+          ? 'px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-800 text-white shadow-sm transition-all'
+          : 'px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300 hover:border-indigo-400 transition-all';
+      }
+      renderSkinView();
+    }
+
+    function renderSkinView() {
+      const data = SKIN_CASES[currentSkinKey];
+      document.getElementById('skin-case-title').innerText = data.title;
+      document.getElementById('skin-case-sub').innerText = data.sub;
+      document.getElementById('ai-confidence').innerText = data.confidence;
+      document.getElementById('patch-area-val').innerText = data.area;
+      document.getElementById('patch-status-desc').innerText = data.desc;
+
+      const card = document.getElementById('patch-status-card');
+      const label = document.getElementById('patch-status-label');
+      if (data.status === 'ACTIVE') {
+        card.className = 'rounded-2xl p-4 mb-5 bg-amber-50 border border-amber-300 transition-all';
+        label.className = 'text-sm font-extrabold uppercase tracking-wide text-amber-900 flex items-center gap-2';
+        label.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span>${data.label}`;
+      } else {
+        card.className = 'rounded-2xl p-4 mb-5 bg-emerald-50 border border-emerald-300 transition-all';
+        label.className = 'text-sm font-extrabold uppercase tracking-wide text-emerald-900 flex items-center gap-2';
+        label.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>${data.label}`;
+      }
+
+      document.getElementById('metric-sharpness').innerText = data.sharpnessText;
+      document.getElementById('bar-sharpness').style.width = data.sharpnessPct;
+      document.getElementById('metric-follicular').innerText = data.follicularText;
+      document.getElementById('bar-follicular').style.width = data.follicularPct;
+
+      document.getElementById('patch-recommendations').innerHTML = data.recs.map(r =>
+        `<span class="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-700">✓ ${r}</span>`
+      ).join('');
+
+      if (!isCustomUpload) {
+        document.getElementById('svg-skin-bg').setAttribute('fill', uvEnabled ? data.uvColor : data.skinColor);
+        const fillUrl = uvEnabled ? 'url(#patch-uv)' : 'url(#patch-day)';
+        document.getElementById('svg-patch-shape').innerHTML = `<path d="${data.path}" fill="${fillUrl}" />`;
+        document.getElementById('svg-seg-overlay').innerHTML = segEnabled
+          ? `<path d="${data.path}" fill="rgba(45, 212, 191, 0.14)" stroke="#14b8a6" stroke-width="2.5" stroke-dasharray="7 5" />`
+          : '';
+      } else {
+        const img = document.getElementById('uploaded-preview');
+        img.style.filter = uvEnabled ? 'hue-rotate(210deg) contrast(145%) saturate(160%)' : 'none';
+      }
+
+      document.getElementById('viewport-hud').innerText = uvEnabled
+        ? 'Mode: 365nm Wood’s Lamp UV Fluorescence'
+        : (segEnabled ? 'Mode: Daylight RGB + AI Boundary Segmentation' : 'Mode: Raw Macro Daylight');
+    }
+
+    function handlePhotoUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        isCustomUpload = true;
+        const img = document.getElementById('uploaded-preview');
+        img.src = e.target.result;
+        img.classList.remove('hidden');
+        document.getElementById('skin-demo-svg').classList.add('hidden');
+        document.getElementById('skin-case-title').innerText = `Uploaded Patch: ${file.name}`;
+        document.getElementById('skin-case-sub').innerText = 'AI Border & Melanin Contrast Analysis Complete';
+        showToast('Patch Photo Analyzed', 'AI boundary detection & Wood’s lamp filter ready.');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function saveToSkinDiary() {
+      showToast('Saved to Skin Diary', 'Timestamped patch snapshot & stability score archived.');
+    }
+
+    // 4. VitiBuddy AI Companion & Mood Journal
+    const BUDDY_REPLIES = [
+      "You are so much more than your skin. When people look, it's usually curiosity, not judgment—a warm smile or simple 'It's vitiligo, just unique pigment!' often turns awkwardness into connection. 💛",
+      "For children, framing vitiligo as unique 'starlight spots' or 'art on skin' builds lifelong self-love. Would you like a kid-friendly story to read together?",
+      "Repigmentation takes patience, and every small follicular dot is progress. Remember to celebrate consistency with your care routine today! 🌱",
+      "I hear you, and it's completely okay to feel this way. Taking 3 deep breaths and logging your mood helps release stress. I'm right here with you."
+    ];
+    let buddyReplyIdx = 0;
+
+    function appendChat(sender, text) {
+      const box = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      if (sender === 'user') {
+        div.className = 'flex justify-end';
+        div.innerHTML = `<div class="bg-indigo-800 text-white rounded-2xl rounded-tr-none px-4 py-2.5 text-xs sm:text-sm max-w-md">${text}</div>`;
+      } else {
+        div.className = 'flex items-start gap-2.5';
+        div.innerHTML = `
+          <div class="w-7 h-7 rounded-lg bg-teal-600 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">VB</div>
+          <div class="bg-slate-100 text-slate-800 rounded-2xl rounded-tl-none px-4 py-2.5 text-xs sm:text-sm max-w-md leading-relaxed">${text}</div>
+        `;
+      }
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function handleChatSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('chat-input');
+      const msg = input.value.trim();
+      if (!msg) return;
+      appendChat('user', msg);
+      input.value = '';
+      setTimeout(() => {
+        appendChat('buddy', BUDDY_REPLIES[buddyReplyIdx % BUDDY_REPLIES.length]);
+        buddyReplyIdx++;
+      }, 450);
+    }
+
+    function sendQuickPrompt(promptText) {
+      appendChat('user', promptText);
+      setTimeout(() => {
+        appendChat('buddy', BUDDY_REPLIES[buddyReplyIdx % BUDDY_REPLIES.length]);
+        buddyReplyIdx++;
+      }, 450);
+    }
+
+    let voiceActive = false;
+    function toggleVoiceAssistant() {
+      voiceActive = !voiceActive;
+      const btn = document.getElementById('voice-btn');
+      const label = document.getElementById('voice-btn-text');
+      if (voiceActive) {
+        btn.classList.add('voice-pulse', 'bg-teal-600', 'text-white');
+        btn.classList.remove('bg-teal-50', 'text-teal-800');
+        label.innerText = 'Listening (Voice Active)...';
+        showToast('VitiBuddy Voice Active', 'Speak in English or Hindi for real-time voice support.');
+      } else {
+        btn.classList.remove('voice-pulse', 'bg-teal-600', 'text-white');
+        btn.classList.add('bg-teal-50', 'text-teal-800');
+        label.innerText = 'Talk to VitiBuddy';
+      }
+    }
+
+    const MOODS = {
+      1: { emoji: '😔', label: 'Overwhelmed / Low (1 / 5)' },
+      2: { emoji: '😕', label: 'A Bit Anxious (2 / 5)' },
+      3: { emoji: '😐', label: 'Calm & Steady (3 / 5)' },
+      4: { emoji: '😊', label: 'Hopeful & Grounded (4 / 5)' },
+      5: { emoji: '🌟', label: 'Confident & Empowered (5 / 5)' }
+    };
+
+    function updateMoodDisplay(val) {
+      document.getElementById('mood-emoji').innerText = MOODS[val].emoji;
+      document.getElementById('mood-label').innerText = MOODS[val].label;
+    }
+
+    function logMoodEntry() {
+      const val = document.getElementById('mood-slider').value;
+      document.getElementById('mood-history').innerText = `Saved just now: ${MOODS[val].emoji} ${MOODS[val].label} • Streak: 7 Days`;
+      document.getElementById('mood-note').value = '';
+      showToast('Mood Entry Logged', 'Your private emotional wellbeing journal has been updated.');
+    }
+
+    // 5. Community Hub: Journey Wall & Q&A
+    function publishJourneyStory(e) {
+      e.preventDefault();
+      const title = document.getElementById('story-title').value.trim();
+      const body = document.getElementById('story-body').value.trim();
+      const isAnon = document.getElementById('anon-toggle').checked;
+
+      const authorBadge = isAnon
+        ? `<span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-800 flex items-center justify-center text-[11px]">🎭</span> Anonymous Member • Verified`
+        : `<span class="w-6 h-6 rounded-full bg-teal-100 text-teal-800 flex items-center justify-center text-[11px]">DV</span> Dev Verma • Community Member`;
+
+      const card = document.createElement('div');
+      card.className = 'bg-white rounded-2xl p-4 border-2 border-indigo-200 shadow-sm';
+      card.innerHTML = `
+        <div class="flex items-center justify-between text-xs mb-1.5">
+          <span class="font-bold text-indigo-900 flex items-center gap-1.5">${authorBadge}</span>
+          <span class="text-teal-600 font-mono font-bold">Just now</span>
+        </div>
+        <h4 class="font-bold text-sm text-slate-900">"${title}"</h4>
+        <p class="text-xs text-slate-600 mt-1 leading-relaxed">${body}</p>
+        <div class="mt-2.5 flex items-center gap-4 text-xs text-slate-500">
+          <button onclick="likeStory(this)" class="hover:text-teal-700 font-semibold flex items-center gap-1">💛 <span>1 Heart</span></button>
+          <span class="font-mono text-[11px] text-indigo-700">#VitiverseJourney</span>
+        </div>
+      `;
+      document.getElementById('journey-feed').prepend(card);
+      document.getElementById('story-title').value = '';
+      document.getElementById('story-body').value = '';
+      showToast(isAnon ? 'Posted Anonymously' : 'Story Published', 'Your story is now live on the Vitiverse Journey Wall.');
+    }
+
+    function likeStory(btn) {
+      const span = btn.querySelector('span');
+      const num = parseInt(span.innerText) || 1;
+      span.innerText = `${num + 1} Hearts`;
+    }
+
+    function addCommunityQuestion(e) {
+      e.preventDefault();
+      const input = document.getElementById('qa-input');
+      const qText = input.value.trim();
+      if (!qText) return;
+      const item = document.createElement('div');
+      item.className = 'bg-white rounded-2xl p-3.5 border border-teal-300';
+      item.innerHTML = `
+        <span class="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-teal-100 text-teal-800">New Question</span>
+        <h4 class="font-bold text-sm text-slate-900 mt-1">${qText}</h4>
+        <p class="text-[11px] text-slate-500 mt-1">Awaiting community &amp; dermatologist replies...</p>
+      `;
+      document.getElementById('qa-list').prepend(item);
+      input.value = '';
+      showToast('Question Posted', 'Notified experienced members & dermatologists.');
+    }
+
+    // 6. Daily Myth vs. Fact Quiz
+    const MYTH_CARDS = [
+      {
+        q: '"Drinking milk right after eating fish or sour foods causes Vitiligo."',
+        ans: 'MYTH',
+        exp: '<strong>100% MYTH!</strong> Diet combinations like milk and fish do NOT cause vitiligo. It is an autoimmune condition where pigment cells (melanocytes) stop producing melanin.'
+      },
+      {
+        q: '"Vitiligo is contagious and can spread by touching or sharing utensils."',
+        ans: 'MYTH',
+        exp: '<strong>100% MYTH!</strong> Vitiligo is completely non-infectious and non-contagious. Hugging, shaking hands, or sharing meals is 100% safe.'
+      },
+      {
+        q: '"Consistent NB-UVB phototherapy & topical care can stimulate repigmentation."',
+        ans: 'FACT',
+        exp: '<strong>FACT!</strong> Narrowband UVB (311nm) stimulates dormant melanocytes in hair follicles to migrate and restore natural skin color.'
+      }
+    ];
+    let currentQuizIdx = 0;
+
+    function answerQuiz(choice) {
+      const item = MYTH_CARDS[currentQuizIdx];
+      const fb = document.getElementById('quiz-feedback');
+      fb.classList.remove('hidden');
+      const prefix = choice === item.ans ? '🎉 Spot on! ' : '💡 Good try! ';
+      fb.innerHTML = prefix + item.exp;
+    }
+
+    function nextQuizCard() {
+      currentQuizIdx = (currentQuizIdx + 1) % MYTH_CARDS.length;
+      document.getElementById('quiz-question').innerText = MYTH_CARDS[currentQuizIdx].q;
+      document.getElementById('quiz-feedback').classList.add('hidden');
+    }
+
+    // 7. Specialist Map & Phototherapy Session Tracker
+    function highlightDoctor(idx) {
+      [0, 1].forEach(i => {
+        document.getElementById(`doc-card-${i}`).className = i === idx
+          ? 'p-3.5 rounded-2xl bg-white border-2 border-teal-500 shadow-sm transition-all'
+          : 'p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm transition-all';
+      });
+    }
+
+    function bookDoctor(docName) {
+      showToast('Consultation Requested', `Appointment slot reserved with ${docName}.`);
+    }
+
+    let sessionCount = 14;
+    const totalSessions = 30;
+    function logPhototherapySession() {
+      if (sessionCount < totalSessions) sessionCount++;
+      const pct = Math.round((sessionCount / totalSessions) * 100);
+      document.getElementById('session-badge').innerText = `${sessionCount} / ${totalSessions} Sessions`;
+      document.getElementById('session-percent').innerText = `${pct}% Complete`;
+      document.getElementById('session-progress-bar').style.width = `${pct}%`;
+
+      const row = document.createElement('div');
+      row.className = 'flex items-center justify-between p-2.5 rounded-xl bg-teal-50 border border-teal-200';
+      row.innerHTML = `
+        <span class="font-semibold text-slate-900">Session #${sessionCount} • 45 sec (450 mJ/cm²)</span>
+        <span class="text-teal-800 font-mono text-[11px] font-bold">Logged Today ✓</span>
+      `;
+      document.getElementById('session-log-list').prepend(row);
+      showToast('Phototherapy Session Logged', `Session #${sessionCount} recorded in your NB-UVB treatment schedule.`);
+    }
+
+    // Toast Utility
+    function showToast(title, sub) {
+      document.getElementById('toast-title').innerText = title;
+      document.getElementById('toast-sub').innerText = sub;
+      const toast = document.getElementById('toast');
+      toast.classList.remove('translate-y-24', 'opacity-0');
+      setTimeout(() => {
+        toast.classList.add('translate-y-24', 'opacity-0');
+      }, 3200);
+    }
+
+    // Initialize Default State
+    window.addEventListener('DOMContentLoaded', () => {
+      selectSkinCase('activePatch');
+    });
+  </script>
+</body>
+</html>
