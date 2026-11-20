@@ -127,8 +127,8 @@
         </div>
         <div>
           <span class="font-extrabold text-xl tracking-tight text-slate-900">Viti<span class="text-teal-600">verse</span></span>
-          <span class="hidden lg:inline-block ml-2 text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 font-semibold">
-            Holistic AI Ecosystem
+          <span id="db-status-badge" class="hidden lg:inline-block ml-2 text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 font-semibold">
+            Preview Mode
           </span>
         </div>
       </a>
@@ -179,7 +179,7 @@
         Combining clinical AI patch tracking, empathetic emotional support, anonymous community stories, and verified dermatologists in one safe space.
       </p>
 
-      <!-- User Identity Personalization Switcher (From Handwritten Notes) -->
+      <!-- User Identity Personalization Switcher -->
       <div class="max-w-2xl mx-auto mb-10">
         <p class="text-xs font-mono uppercase tracking-wider text-slate-500 font-semibold mb-2.5" data-en="Personalize Your Vitiverse Experience:" data-hi="अपना अनुभव चुनें:">
           Personalize Your Vitiverse Experience:
@@ -297,7 +297,7 @@
           <div class="relative w-full h-72 sm:h-80 rounded-2xl overflow-hidden border border-slate-300 bg-[#b87b54]">
             <div class="scan-beam"></div>
 
-            <!-- Uploaded User Image Preview (hidden unless user uploads a photo) -->
+            <!-- Uploaded User Image Preview -->
             <img id="uploaded-preview" alt="Uploaded skin patch" class="hidden w-full h-full object-cover" />
 
             <!-- Procedural Clinical Dermoscopy SVG -->
@@ -889,8 +889,11 @@
     </div>
   </footer>
 
-  <!-- Interactive JavaScript Engine -->
+  <!-- Interactive JavaScript Engine (Flask SQLite + Static Fallback) -->
   <script>
+    const API_BASE = "http://127.0.0.1:5000/api";
+    let backendOnline = false;
+
     // 1. Language Switcher (English / Hindi)
     function setLanguage(lang) {
       document.getElementById('lang-en').className = lang === 'en'
@@ -1075,7 +1078,7 @@
       showToast('Saved to Skin Diary', 'Timestamped patch snapshot & stability score archived.');
     }
 
-    // 4. VitiBuddy AI Companion & Mood Journal
+    // 4. VitiBuddy AI Companion & Mood Journal (Connected to Flask SQLite)
     const BUDDY_REPLIES = [
       "You are so much more than your skin. When people look, it's usually curiosity, not judgment—a warm smile or simple 'It's vitiligo, just unique pigment!' often turns awkwardness into connection. 💛",
       "For children, framing vitiligo as unique 'starlight spots' or 'art on skin' builds lifelong self-love. Would you like a kid-friendly story to read together?",
@@ -1152,42 +1155,80 @@
       document.getElementById('mood-label').innerText = MOODS[val].label;
     }
 
-    function logMoodEntry() {
+    async function logMoodEntry() {
       const val = document.getElementById('mood-slider').value;
-      document.getElementById('mood-history').innerText = `Saved just now: ${MOODS[val].emoji} ${MOODS[val].label} • Streak: 7 Days`;
+      const note = document.getElementById('mood-note').value.trim();
+
+      try {
+        const res = await fetch(`${API_BASE}/moods`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ score: val, note })
+        });
+        if (res.ok) {
+          document.getElementById('mood-history').innerText = `Saved to SQLite DB: ${MOODS[val].emoji} ${MOODS[val].label}`;
+          showToast('Mood Entry Logged', 'Saved permanently to vitiverse.db.');
+        }
+      } catch {
+        document.getElementById('mood-history').innerText = `Saved just now: ${MOODS[val].emoji} ${MOODS[val].label} • Streak: 7 Days`;
+        showToast('Mood Entry Logged', 'Your private emotional wellbeing journal has been updated.');
+      }
       document.getElementById('mood-note').value = '';
-      showToast('Mood Entry Logged', 'Your private emotional wellbeing journal has been updated.');
     }
 
-    // 5. Community Hub: Journey Wall & Q&A
-    function publishJourneyStory(e) {
+    // 5. Community Hub: Journey Wall & Q&A (Connected to Flask SQLite)
+    function renderStoryCard(story) {
+      const avatar = story.is_anonymous ? '🎭' : 'DV';
+      const card = document.createElement('div');
+      card.className = 'bg-white rounded-2xl p-4 border-2 border-indigo-200 shadow-sm';
+      card.innerHTML = `
+        <div class="flex items-center justify-between text-xs mb-1.5">
+          <span class="font-bold text-indigo-900 flex items-center gap-1.5">
+            <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-800 flex items-center justify-center text-[11px]">${avatar}</span>
+            ${story.author}
+          </span>
+          <span class="text-teal-600 font-mono font-bold">${story.created_at}</span>
+        </div>
+        <h4 class="font-bold text-sm text-slate-900">"${story.title}"</h4>
+        <p class="text-xs text-slate-600 mt-1 leading-relaxed">${story.body}</p>
+        <div class="mt-2.5 flex items-center gap-4 text-xs text-slate-500">
+          <button onclick="likeStory(this)" class="hover:text-teal-700 font-semibold flex items-center gap-1">💛 <span>${story.hearts} Heart</span></button>
+          <span class="font-mono text-[11px] text-indigo-700">#VitiverseJourney</span>
+        </div>
+      `;
+      document.getElementById('journey-feed').prepend(card);
+    }
+
+    async function publishJourneyStory(e) {
       e.preventDefault();
       const title = document.getElementById('story-title').value.trim();
       const body = document.getElementById('story-body').value.trim();
       const isAnon = document.getElementById('anon-toggle').checked;
 
-      const authorBadge = isAnon
-        ? `<span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-800 flex items-center justify-center text-[11px]">🎭</span> Anonymous Member • Verified`
-        : `<span class="w-6 h-6 rounded-full bg-teal-100 text-teal-800 flex items-center justify-center text-[11px]">DV</span> Dev Verma • Community Member`;
+      try {
+        const res = await fetch(`${API_BASE}/stories`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, body, is_anonymous: isAnon })
+        });
+        if (!res.ok) throw new Error("API error");
+        const savedStory = await res.json();
+        renderStoryCard(savedStory);
+        showToast(isAnon ? 'Posted Anonymously' : 'Story Published', 'Saved permanently to vitiverse.db!');
+      } catch {
+        renderStoryCard({
+          title,
+          body,
+          is_anonymous: isAnon,
+          author: isAnon ? "Anonymous Member • Verified" : "Dev Verma • Community Member",
+          hearts: 1,
+          created_at: "Just now"
+        });
+        showToast(isAnon ? 'Posted Anonymously' : 'Story Published', 'Your story is now live on the Vitiverse Journey Wall.');
+      }
 
-      const card = document.createElement('div');
-      card.className = 'bg-white rounded-2xl p-4 border-2 border-indigo-200 shadow-sm';
-      card.innerHTML = `
-        <div class="flex items-center justify-between text-xs mb-1.5">
-          <span class="font-bold text-indigo-900 flex items-center gap-1.5">${authorBadge}</span>
-          <span class="text-teal-600 font-mono font-bold">Just now</span>
-        </div>
-        <h4 class="font-bold text-sm text-slate-900">"${title}"</h4>
-        <p class="text-xs text-slate-600 mt-1 leading-relaxed">${body}</p>
-        <div class="mt-2.5 flex items-center gap-4 text-xs text-slate-500">
-          <button onclick="likeStory(this)" class="hover:text-teal-700 font-semibold flex items-center gap-1">💛 <span>1 Heart</span></button>
-          <span class="font-mono text-[11px] text-indigo-700">#VitiverseJourney</span>
-        </div>
-      `;
-      document.getElementById('journey-feed').prepend(card);
       document.getElementById('story-title').value = '';
       document.getElementById('story-body').value = '';
-      showToast(isAnon ? 'Posted Anonymously' : 'Story Published', 'Your story is now live on the Vitiverse Journey Wall.');
     }
 
     function likeStory(btn) {
@@ -1247,7 +1288,7 @@
       document.getElementById('quiz-feedback').classList.add('hidden');
     }
 
-    // 7. Specialist Map & Phototherapy Session Tracker
+    // 7. Specialist Map & Phototherapy Session Tracker (Connected to Flask SQLite)
     function highlightDoctor(idx) {
       [0, 1].forEach(i => {
         document.getElementById(`doc-card-${i}`).className = i === idx
@@ -1262,21 +1303,35 @@
 
     let sessionCount = 14;
     const totalSessions = 30;
-    function logPhototherapySession() {
-      if (sessionCount < totalSessions) sessionCount++;
-      const pct = Math.round((sessionCount / totalSessions) * 100);
-      document.getElementById('session-badge').innerText = `${sessionCount} / ${totalSessions} Sessions`;
+
+    function renderSessionRow(sessionNum, sec, mj, labelText) {
+      const pct = Math.min(100, Math.round((sessionNum / totalSessions) * 100));
+      document.getElementById('session-badge').innerText = `${sessionNum} / ${totalSessions} Sessions`;
       document.getElementById('session-percent').innerText = `${pct}% Complete`;
       document.getElementById('session-progress-bar').style.width = `${pct}%`;
 
       const row = document.createElement('div');
       row.className = 'flex items-center justify-between p-2.5 rounded-xl bg-teal-50 border border-teal-200';
       row.innerHTML = `
-        <span class="font-semibold text-slate-900">Session #${sessionCount} • 45 sec (450 mJ/cm²)</span>
-        <span class="text-teal-800 font-mono text-[11px] font-bold">Logged Today ✓</span>
+        <span class="font-semibold text-slate-900">Session #${sessionNum} • ${sec} sec (${mj} mJ/cm²)</span>
+        <span class="text-teal-800 font-mono text-[11px] font-bold">${labelText} ✓</span>
       `;
       document.getElementById('session-log-list').prepend(row);
-      showToast('Phototherapy Session Logged', `Session #${sessionCount} recorded in your NB-UVB treatment schedule.`);
+    }
+
+    async function logPhototherapySession() {
+      try {
+        const res = await fetch(`${API_BASE}/sessions`, { method: "POST" });
+        if (!res.ok) throw new Error("API error");
+        const saved = await res.json();
+        sessionCount = saved.session_number;
+        renderSessionRow(saved.session_number, saved.duration_sec, saved.dose_mj, "Saved to DB");
+        showToast('Phototherapy Session Logged', `Session #${saved.session_number} saved to vitiverse.db.`);
+      } catch {
+        if (sessionCount < totalSessions) sessionCount++;
+        renderSessionRow(sessionCount, 45, 450, "Logged Today");
+        showToast('Phototherapy Session Logged', `Session #${sessionCount} recorded in your NB-UVB treatment schedule.`);
+      }
     }
 
     // Toast Utility
@@ -1290,9 +1345,38 @@
       }, 3200);
     }
 
-    // Initialize Default State
-    window.addEventListener('DOMContentLoaded', () => {
+    // Initialize Default State & Sync Saved SQLite Records
+    window.addEventListener('DOMContentLoaded', async () => {
       selectSkinCase('activePatch');
+
+      try {
+        const healthRes = await fetch(`${API_BASE}/health`);
+        if (healthRes.ok) {
+          backendOnline = true;
+          const badge = document.getElementById('db-status-badge');
+          badge.innerText = "SQLite DB Connected";
+          badge.className = "hidden lg:inline-block ml-2 text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold";
+        }
+
+        const storiesRes = await fetch(`${API_BASE}/stories`);
+        if (storiesRes.ok) {
+          const stories = await storiesRes.json();
+          stories.reverse().forEach(renderStoryCard);
+        }
+
+        const sessionsRes = await fetch(`${API_BASE}/sessions`);
+        if (sessionsRes.ok) {
+          const sessions = await sessionsRes.json();
+          if (sessions.length > 0) {
+            sessions.reverse().forEach(s => {
+              sessionCount = s.session_number;
+              renderSessionRow(s.session_number, s.duration_sec, s.dose_mj, s.created_at);
+            });
+          }
+        }
+      } catch {
+        console.log("Backend offline — running in standalone preview mode.");
+      }
     });
   </script>
 </body>
