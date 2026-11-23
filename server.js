@@ -138,16 +138,52 @@ app.post('/api/appointments', (req, res) => {
   res.status(201).json(item);
 });
 
-// VitiBuddy AI Chat (Auto-Fallback Across Active Gemini & Gemma Models)
+// VitiBuddy AI Chat (True Multilingual Open-Ended Gemini AI + Auto-Discovery)
 app.post('/api/chat', async (req, res) => {
   const msg = (req.body?.message || '').trim();
   const apiKey = (process.env.GEMINI_API_KEY || '').trim();
 
-  if (apiKey) {
-    const prompt = `You are VitiBuddy, an empathetic, warm AI support companion on the Vitiverse platform for people with Vitiligo and their families. Reply naturally and warmly in 2-3 sentences in the exact language or Hinglish style the user used. Never diagnose medically.\n\nUser: ${msg}`;
-    const models = ['gemini-3.8-flash', 'gemini-2.5-flash-lite', 'gemma-3-27b-it', 'gemini-2.0-flash-lite'];
+  if (!apiKey) {
+    return res.json({ reply: 'Please add GEMINI_API_KEY in Render Environment settings to activate live AI.', source: 'no-key' });
+  }
 
-    for (const model of models) {
+  const systemPrompt = `You are VitiBuddy, an intelligent, warm, empathetic AI companion on the Vitiverse platform.
+Rules:
+1. Respond naturally to ANYTHING the user says or asks—whether it is about Vitiligo, skincare, confidence, daily life, general knowledge, or casual conversation.
+2. ALWAYS reply in the exact same language and script/style the user used (e.g., if they write in English, reply in English; if Hindi, reply in Hindi; if Hinglish, reply in Hinglish; if Spanish/French/etc., reply in that language).
+3. Keep answers helpful, conversational, and concise (2-4 sentences unless they ask for more detail).
+4. Never give formal medical prescriptions; suggest consulting a dermatologist for medical treatment decisions.
+
+User message: ${msg}`;
+
+  try {
+    let candidateModels = ['gemini-3.8-flash', 'gemini-2.5-flash-lite', 'gemma-3-27b-it'];
+    try {
+      const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        const available = (listData.models || [])
+          .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+          .map(m => m.name.replace('models/', ''))
+          .filter(name => !name.includes('embedding') && !name.includes('vision') && !name.includes('tts') && !name.includes('image'));
+        if (available.length > 0) {
+          const prioritized = [
+            ...available.filter(n => n.includes('3.8-flash')),
+            ...available.filter(n => n.includes('flash') && !n.includes('3.8')),
+            ...available.filter(n => n.includes('gemma-3-27b')),
+            ...available.filter(n => n.includes('pro'))
+          ];
+          candidateModels = [...new Set([...prioritized, ...available])].slice(0, 6);
+        }
+      } else {
+        const errData = await listRes.json();
+        console.error('Model list error:', listRes.status, errData?.error?.message || '');
+      }
+    } catch (e) {
+      console.error('Model discovery skipped:', e.message);
+    }
+
+    for (const model of candidateModels) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 12000);
       try {
@@ -157,14 +193,14 @@ app.post('/api/chat', async (req, res) => {
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
           body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
+            contents: [{ parts: [{ text: systemPrompt }] }]
           })
         });
         clearTimeout(timer);
         const data = await apiRes.json();
         const replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
         if (apiRes.ok && replyText) {
-          return res.json({ reply: replyText, model });
+          return res.json({ reply: replyText.trim(), model });
         }
         console.error(`Model ${model} (${apiRes.status}):`, data?.error?.message || 'failed');
       } catch (err) {
@@ -172,24 +208,14 @@ app.post('/api/chat', async (req, res) => {
         console.error(`Model ${model} error:`, err.message);
       }
     }
+  } catch (fatal) {
+    console.error('VitiBuddy fatal error:', fatal.message);
   }
 
-  const lower = msg.toLowerCase();
-  let reply = 'You are so much more than your skin. Vitiligo is autoimmune—never contagious—and consistent care with confidence makes all the difference. 💛';
-  if (lower === 'hi' || lower === 'hello' || lower === 'hey' || lower.includes('kaise ho') || lower.includes('are u there')) {
-    reply = 'Hello! 💛 Main VitiBuddy hoon, aapka Vitiverse companion. Aaj aap kaisa mehsoos kar rahe hain?';
-  } else if (lower.includes('your name') || lower.includes('who are you') || lower.includes('naam')) {
-    reply = 'Mera naam VitiBuddy hai! 💛 Main yahan vitiligo care tips, confidence aur emotional support ke liye hoon.';
-  } else if (lower.includes('kaha se') || lower.includes('where are you')) {
-    reply = 'Main Vitiverse platform par hamesha aapke saath hoon—chahe aap kahin se bhi baat kar rahe hon! 💛';
-  } else if (lower.includes('stare') || lower.includes('public') || lower.includes('confident')) {
-    reply = 'When people look, it is almost always curiosity rather than judgment. A warm smile or saying "It is vitiligo—just unique skin pigment!" turns awkwardness into connection. 💛';
-  } else if (lower.includes('child') || lower.includes('kid') || lower.includes('school')) {
-    reply = 'Framing vitiligo for children as unique "starlight spots" or "constellations on skin" builds lifelong self-love and helps them explain it proudly to friends. 🌟';
-  } else if (lower.includes('anxious') || lower.includes('phototherapy') || lower.includes('uv') || lower.includes('slow')) {
-    reply = 'Repigmentation takes patience—tiny follicular dots around hair roots are often the very first sign of progress. Celebrate showing up consistently for your care today! 🌱';
-  }
-  res.json({ reply, source: 'fallback' });
+  res.json({
+    reply: 'Gemini is experiencing a temporary spike right now—please send your message again in a few seconds! 💛',
+    source: 'error'
+  });
 });
 
 app.listen(PORT, () => console.log(`Vitiverse Node server live on port ${PORT}`));
