@@ -138,31 +138,38 @@ app.post('/api/appointments', (req, res) => {
   res.status(201).json(item);
 });
 
-// VitiBuddy AI Chat (Gemini 3.8 Flash with 503 Auto-Retry + Fallback)
+// VitiBuddy AI Chat (Direct REST with 6s Hard Timeout + Smart Fallback)
 app.post('/api/chat', async (req, res) => {
   const msg = (req.body?.message || '').trim();
   const apiKey = (process.env.GEMINI_API_KEY || '').trim();
 
   if (apiKey) {
-    const { GoogleGenAI } = require('@google/genai');
-    const ai = new GoogleGenAI({ apiKey });
     const prompt = `You are VitiBuddy, an empathetic, warm AI support companion on the Vitiverse platform for people with Vitiligo and their families. Reply naturally and warmly in 2-3 sentences in the user's language (English or Hindi). Never diagnose medically.\n\nUser: ${msg}`;
+    const models = ['gemini-3.8-flash', 'gemini-3.8-flash-lite'];
 
-    const attempts = [
-      { model: 'gemini-3.8-flash', delay: 1200 },
-      { model: 'gemini-3.8-flash', delay: 2000 },
-      { model: 'gemini-3.8-flash-lite', delay: 0 }
-    ];
-
-    for (const step of attempts) {
+    for (const model of models) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
       try {
-        const r = await ai.models.generateContent({ model: step.model, contents: prompt });
-        if (r && r.text) {
-          return res.json({ reply: r.text, model: step.model });
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const apiRes = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }]
+          })
+        });
+        clearTimeout(timer);
+        const data = await apiRes.json();
+        const replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (apiRes.ok && replyText) {
+          return res.json({ reply: replyText, model });
         }
+        console.error(`Gemini ${model} (${apiRes.status}):`, JSON.stringify(data?.error || data));
       } catch (err) {
-        console.error(`${step.model} attempt failed:`, err.message || err);
-        if (step.delay > 0) await new Promise(resolve => setTimeout(resolve, step.delay));
+        clearTimeout(timer);
+        console.error(`Gemini ${model} error:`, err.message);
       }
     }
   }
@@ -170,7 +177,7 @@ app.post('/api/chat', async (req, res) => {
   const lower = msg.toLowerCase();
   let reply = 'You are so much more than your skin. Vitiligo is autoimmune—never contagious—and consistent care with confidence makes all the difference. 💛';
   if (lower === 'hi' || lower === 'hello' || lower === 'hey' || lower.includes('are u there') || lower.includes('are you there')) {
-    reply = 'Yes, I am right here with you! 💛 How are you feeling today, or is there anything on your mind I can help with?';
+    reply = 'Hello! 💛 I am VitiBuddy, your supportive Vitiverse companion. How are you feeling today, or is there anything on your mind I can help with?';
   } else if (lower.includes('your name') || lower.includes('who are you')) {
     reply = 'I am VitiBuddy! 💛 I am here to support you with vitiligo care tips, confidence coaching, and a judgment-free space whenever you want to talk.';
   } else if (lower.includes('stare') || lower.includes('public') || lower.includes('confident')) {
