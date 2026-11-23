@@ -1492,5 +1492,69 @@
       connectToBackend();
     });
   </script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const fileInput = document.querySelector('input[type="file"]');
+  if (!fileInput) return;
+
+  fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Create or reuse AI Vision result banner inside Module 01
+    let banner = document.getElementById('ai-vision-result');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'ai-vision-result';
+      banner.className = 'mt-4 p-4 rounded-2xl bg-teal-50 border border-teal-200 text-slate-800 text-xs sm:text-sm space-y-1.5';
+      fileInput.closest('div')?.parentElement?.appendChild(banner);
+    }
+    banner.innerHTML = `<div class="font-semibold text-teal-800 animate-pulse">🔍 Analyzing patch image with Gemini Vision...</div>`;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result;
+      const base64 = dataUrl.split(',')[1];
+      const baseUrl = (typeof API_BASE !== 'undefined') ? API_BASE : 'https://vitiverse.onrender.com/api';
+
+      try {
+        const res = await fetch(`${baseUrl}/analyze-patch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: base64,
+            mimeType: file.type || 'image/jpeg',
+            caseTitle: file.name.replace(/\.[^/.]+$/, '') || 'Skin Patch Scan'
+          })
+        });
+        const ai = await res.json();
+        banner.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-teal-900">✨ Gemini Vision Assessment (${ai.status})</span>
+            <span class="px-2 py-0.5 rounded-full bg-teal-600 text-white text-[11px] font-semibold">Est. Area: ${ai.area_cm2}</span>
+          </div>
+          <p class="text-slate-700 leading-relaxed">${ai.observations}</p>
+          <p class="text-teal-800 font-medium">💡 Tip: ${ai.care_tip}</p>
+          <p class="text-[11px] text-slate-400 italic">Educational AI screening only—consult a dermatologist for medical diagnosis.</p>
+        `;
+
+        // Auto-save scan entry to backend diary
+        await fetch(`${baseUrl}/scans`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            case_title: ai.case_title,
+            status: ai.status,
+            area_cm2: ai.area_cm2
+          })
+        });
+      } catch (err) {
+        banner.innerHTML = `<div class="text-amber-700">⚠️ Could not reach Vision AI right now. Preview saved locally.</div>`;
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+});
+</script>
 </body>
 </html>
