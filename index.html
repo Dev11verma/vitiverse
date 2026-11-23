@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
   <meta charset="UTF-8" />
@@ -1113,18 +1113,33 @@
 
     async function askVitiBuddy(msg) {
       appendChat('user', msg);
+      const box = document.getElementById('chat-messages');
+      const typingId = 'typing-' + Date.now();
+      const typingDiv = document.createElement('div');
+      typingDiv.id = typingId;
+      typingDiv.className = 'flex items-start gap-2.5';
+      typingDiv.innerHTML = `
+        <div class="w-7 h-7 rounded-lg bg-teal-600 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">VB</div>
+        <div class="bg-slate-100 text-slate-500 italic rounded-2xl rounded-tl-none px-4 py-2.5 text-xs sm:text-sm">VitiBuddy is thinking... ✨</div>
+      `;
+      box.appendChild(typingDiv);
+      box.scrollTop = box.scrollHeight;
+
       try {
         const res = await fetch(`${API_BASE}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: msg })
         });
+        document.getElementById(typingId)?.remove();
         if (res.ok) {
           const data = await res.json();
           appendChat('buddy', data.reply);
           return;
         }
-      } catch {}
+      } catch {
+        document.getElementById(typingId)?.remove();
+      }
       appendChat('buddy', 'You are so much more than your skin. Vitiligo is autoimmune—never contagious—and consistent care makes all the difference. 💛');
     }
 
