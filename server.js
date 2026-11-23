@@ -2,13 +2,33 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const { MongoClient } = require('mongodb');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const DB_FILE = path.join(__dirname, 'data.json');
+const MONGODB_URI = (process.env.MONGODB_URI || '').trim();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+
+// --- Dual Storage Layer (MongoDB Atlas Primary + Local JSON Fallback) ---
+let mongoDb = null;
+
+async function connectMongo() {
+  if (!MONGODB_URI) {
+    console.log('MONGODB_URI not set—running with local data.json storage.');
+    return;
+  }
+  try {
+    const client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    mongoDb = client.db('vitiverse');
+    console.log('Connected to MongoDB Atlas (vitiverse database) ✅');
+  } catch (err) {
+    console.error('MongoDB connection failed, falling back to data.json:', err.message);
+  }
+}
 
 const DEFAULT_DATA = {
   stories: [],
@@ -19,7 +39,7 @@ const DEFAULT_DATA = {
   appointments: []
 };
 
-const readDB = () => {
+const readLocalDB = () => {
   try {
     if (!fs.existsSync(DB_FILE)) {
       fs.writeFileSync(DB_FILE, JSON.stringify(DEFAULT_DATA, null, 2), 'utf8');
@@ -27,29 +47,53 @@ const readDB = () => {
     const raw = fs.readFileSync(DB_FILE, 'utf8').replace(/^\uFEFF/, '').trim();
     const parsed = raw ? JSON.parse(raw) : {};
     return { ...DEFAULT_DATA, ...parsed };
-  } catch (err) {
-    console.error('Resetting corrupted data.json:', err.message);
-    fs.writeFileSync(DB_FILE, JSON.stringify(DEFAULT_DATA, null, 2), 'utf8');
+  } catch {
     return { ...DEFAULT_DATA };
   }
 };
 
-const writeDB = (data) => {
+const writeLocalDB = (data) => {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
 };
+
+async function getItems(collectionName) {
+  if (mongoDb) {
+    return await mongoDb.collection(collectionName).find({}, { projection: { _id: 0 } }).sort({ id: -1 }).toArray();
+  }
+  return readLocalDB()[collectionName] || [];
+}
+
+async function addItem(collectionName, item) {
+  if (mongoDb) {
+    await mongoDb.collection(collectionName).insertOne({ ...item });
+    return item;
+  }
+  const db = readLocalDB();
+  db[collectionName].unshift(item);
+  writeLocalDB(db);
+  return item;
+}
 
 const nowStr = (time = true) =>
   new Date().toLocaleString('en-US', time
     ? { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }
     : { month: 'short', day: '2-digit' });
 
-app.get('/', (req, res) => res.json({ message: 'Vitiverse Node.js + JSON API is Live', health: '/api/health' }));
-app.get('/api/health', (req, res) => res.json({ status: 'OK', project: 'Vitiverse', database: 'JSON Store' }));
+app.get('/', (req, res) => res.json({
+  message: 'Vitiverse Node.js API is Live',
+  database: mongoDb ? 'MongoDB Atlas' : 'Local JSON Store',
+  health: '/api/health'
+}));
+
+app.get('/api/health', (req, res) => res.json({
+  status: 'OK',
+  project: 'Vitiverse',
+  database: mongoDb ? 'MongoDB Atlas' : 'Local JSON Store'
+}));
 
 // Stories
-app.get('/api/stories', (req, res) => res.json(readDB().stories));
-app.post('/api/stories', (req, res) => {
-  const db = readDB();
+app.get('/api/stories', async (req, res) => res.json(await getItems('stories')));
+app.post('/api/stories', async (req, res) => {
   const { title = 'Untitled Journey', body = '', is_anonymous = true } = req.body || {};
   const item = {
     id: Date.now(),
@@ -60,81 +104,82 @@ app.post('/api/stories', (req, res) => {
     hearts: 1,
     created_at: nowStr(true)
   };
-  db.stories.unshift(item);
-  writeDB(db);
+  await addItem('stories', item);
   res.status(201).json(item);
 });
 
-app.post('/api/stories/:id/heart', (req, res) => {
-  const db = readDB();
-  const item = db.stories.find(s => s.id === Number(req.params.id));
+app.post('/api/stories/:id/heart', async (req, res) => {
+  const storyId = Number(req.params.id);
+  if (mongoDb) {
+    const col = mongoDb.collection('stories');
+    const updated = await col.findOneAndUpdate(
+      { id: storyId },
+      { $inc: { hearts: 1 } },
+      { returnDocument: 'after' }
+    );
+    if (!updated) return res.status(404).json({ error: 'Not found' });
+    return res.json({ hearts: updated.hearts });
+  }
+  const db = readLocalDB();
+  const item = db.stories.find(s => s.id === storyId);
   if (!item) return res.status(404).json({ error: 'Not found' });
   item.hearts += 1;
-  writeDB(db);
+  writeLocalDB(db);
   res.json({ hearts: item.hearts });
 });
 
 // Moods
-app.get('/api/moods', (req, res) => res.json(readDB().moods));
-app.post('/api/moods', (req, res) => {
-  const db = readDB();
+app.get('/api/moods', async (req, res) => res.json(await getItems('moods')));
+app.post('/api/moods', async (req, res) => {
   const { score = 4, note = '' } = req.body || {};
   const item = { id: Date.now(), score: Number(score), note, created_at: nowStr(true) };
-  db.moods.unshift(item);
-  writeDB(db);
+  await addItem('moods', item);
   res.status(201).json(item);
 });
 
 // Phototherapy Sessions
-app.get('/api/sessions', (req, res) => res.json(readDB().sessions));
-app.post('/api/sessions', (req, res) => {
-  const db = readDB();
-  const nextNum = (db.sessions.length > 0 ? db.sessions[0].session_number : 14) + 1;
+app.get('/api/sessions', async (req, res) => res.json(await getItems('sessions')));
+app.post('/api/sessions', async (req, res) => {
+  const existing = await getItems('sessions');
+  const nextNum = (existing.length > 0 ? existing[0].session_number : 14) + 1;
   const sec = 42 + (nextNum - 14) * 3;
   const item = { id: Date.now(), session_number: nextNum, duration_sec: sec, dose_mj: sec * 10, created_at: nowStr(false) };
-  db.sessions.unshift(item);
-  writeDB(db);
+  await addItem('sessions', item);
   res.status(201).json(item);
 });
 
 // Skin Diary Scans
-app.get('/api/scans', (req, res) => res.json(readDB().scans));
-app.post('/api/scans', (req, res) => {
-  const db = readDB();
+app.get('/api/scans', async (req, res) => res.json(await getItems('scans')));
+app.post('/api/scans', async (req, res) => {
   const { case_title = 'Skin Patch Scan', status = 'ACTIVE', area_cm2 = '4.6 cm²' } = req.body || {};
   const item = { id: Date.now(), case_title, status, area_cm2, created_at: nowStr(false) };
-  db.scans.unshift(item);
-  writeDB(db);
+  await addItem('scans', item);
   res.status(201).json(item);
 });
 
 // Community Q&A
-app.get('/api/questions', (req, res) => res.json(readDB().questions));
-app.post('/api/questions', (req, res) => {
-  const db = readDB();
+app.get('/api/questions', async (req, res) => res.json(await getItems('questions')));
+app.post('/api/questions', async (req, res) => {
   const item = {
     id: Date.now(),
     question_text: req.body?.question_text || '',
     answer_text: 'Awaiting community & dermatologist replies...',
     created_at: nowStr(false)
   };
-  db.questions.unshift(item);
-  writeDB(db);
+  await addItem('questions', item);
   res.status(201).json(item);
 });
 
 // Specialist Appointments
-app.get('/api/appointments', (req, res) => res.json(readDB().appointments));
-app.post('/api/appointments', (req, res) => {
-  const db = readDB();
+app.get('/api/appointments', async (req, res) => res.json(await getItems('appointments')));
+app.post('/api/appointments', async (req, res) => {
   const item = {
     id: Date.now(),
     doctor_name: req.body?.doctor_name || 'Specialist',
     patient_persona: req.body?.patient_persona || 'Adult / Self',
     created_at: nowStr(true)
   };
-  db.appointments.unshift(item);
-  writeDB(db);
+  await addItem('appointments', item);
   res.status(201).json(item);
 });
 
@@ -210,6 +255,7 @@ Return ONLY valid raw JSON (no markdown fences) with these exact keys:
 
   res.json({ ...fallbackResult, source: 'fallback' });
 });
+
 // VitiBuddy AI Chat (True Multilingual Open-Ended Gemini AI + Auto-Discovery)
 app.post('/api/chat', async (req, res) => {
   const msg = (req.body?.message || '').trim();
@@ -222,7 +268,7 @@ app.post('/api/chat', async (req, res) => {
   const systemPrompt = `You are VitiBuddy, an intelligent, warm, empathetic AI companion on the Vitiverse platform.
 Rules:
 1. Respond naturally to ANYTHING the user says or asks—whether it is about Vitiligo, skincare, confidence, daily life, general knowledge, or casual conversation.
-2. ALWAYS reply in the exact same language and script/style the user used (e.g., if they write in English, reply in English; if Hindi, reply in Hindi; if Hinglish, reply in Hinglish; if Spanish/French/etc., reply in that language).
+2. ALWAYS reply in the exact same language and script/style the user used (e.g., if they write in English, reply in English; if Hindi, reply in Hindi; if Hinglish, reply in Hinglish; if Punjabi/Spanish/etc., reply in that language).
 3. Keep answers helpful, conversational, and concise (2-4 sentences unless they ask for more detail).
 4. Never give formal medical prescriptions; suggest consulting a dermatologist for medical treatment decisions.
 
@@ -247,13 +293,8 @@ User message: ${msg}`;
           ];
           candidateModels = [...new Set([...prioritized, ...available])].slice(0, 6);
         }
-      } else {
-        const errData = await listRes.json();
-        console.error('Model list error:', listRes.status, errData?.error?.message || '');
       }
-    } catch (e) {
-      console.error('Model discovery skipped:', e.message);
-    }
+    } catch {}
 
     for (const model of candidateModels) {
       const controller = new AbortController();
@@ -274,10 +315,8 @@ User message: ${msg}`;
         if (apiRes.ok && replyText) {
           return res.json({ reply: replyText.trim(), model });
         }
-        console.error(`Model ${model} (${apiRes.status}):`, data?.error?.message || 'failed');
-      } catch (err) {
+      } catch {
         clearTimeout(timer);
-        console.error(`Model ${model} error:`, err.message);
       }
     }
   } catch (fatal) {
@@ -290,4 +329,6 @@ User message: ${msg}`;
   });
 });
 
-app.listen(PORT, () => console.log(`Vitiverse Node server live on port ${PORT}`));
+connectMongo().then(() => {
+  app.listen(PORT, () => console.log(`Vitiverse Node server live on port ${PORT}`));
+});
