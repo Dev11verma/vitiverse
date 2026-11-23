@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
@@ -20,14 +20,23 @@ const DEFAULT_DATA = {
 };
 
 const readDB = () => {
-  if (!fs.existsSync(DB_FILE)) {
-    fs.writeFileSync(DB_FILE, JSON.stringify(DEFAULT_DATA, null, 2));
+  try {
+    if (!fs.existsSync(DB_FILE)) {
+      fs.writeFileSync(DB_FILE, JSON.stringify(DEFAULT_DATA, null, 2), 'utf8');
+    }
+    const raw = fs.readFileSync(DB_FILE, 'utf8').replace(/^\uFEFF/, '').trim();
+    const parsed = raw ? JSON.parse(raw) : {};
+    return { ...DEFAULT_DATA, ...parsed };
+  } catch (err) {
+    console.error('Resetting corrupted data.json:', err.message);
+    fs.writeFileSync(DB_FILE, JSON.stringify(DEFAULT_DATA, null, 2), 'utf8');
+    return { ...DEFAULT_DATA };
   }
-  const parsed = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-  return { ...DEFAULT_DATA, ...parsed };
 };
 
-const writeDB = (data) => fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+const writeDB = (data) => {
+  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
+};
 
 const nowStr = (time = true) =>
   new Date().toLocaleString('en-US', time
@@ -129,33 +138,47 @@ app.post('/api/appointments', (req, res) => {
   res.status(201).json(item);
 });
 
-// VitiBuddy AI Chat
+// VitiBuddy AI Chat (Gemini 3.8 Flash + Fallback)
 app.post('/api/chat', async (req, res) => {
   const msg = (req.body?.message || '').trim();
-  if (process.env.GEMINI_API_KEY) {
+  const apiKey = (process.env.GEMINI_API_KEY || '').trim();
+
+  if (apiKey) {
     try {
       const { GoogleGenAI } = require('@google/genai');
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const r = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `You are VitiBuddy, an empathetic Vitiligo support companion. Reply warmly in 2-3 sentences in the user's language (English or Hindi). Never diagnose medically.\n\nUser: ${msg}`
-      });
-      return res.json({ reply: r.text });
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = `You are VitiBuddy, an empathetic, warm AI support companion on the Vitiverse platform for people with Vitiligo and their families. Reply naturally and warmly in 2-3 sentences in the user's language (English or Hindi). Never diagnose medically.\n\nUser: ${msg}`;
+
+      const models = ['gemini-3.8-flash', 'gemini-2.5-flash'];
+      for (const modelName of models) {
+        try {
+          const r = await ai.models.generateContent({ model: modelName, contents: prompt });
+          if (r && r.text) {
+            return res.json({ reply: r.text, model: modelName });
+          }
+        } catch (modelErr) {
+          console.error(`Model ${modelName} error:`, modelErr.message || modelErr);
+        }
+      }
     } catch (e) {
-      console.error('Gemini fallback:', e.message);
+      console.error('Gemini SDK Error:', e.message || e);
     }
   }
 
   const lower = msg.toLowerCase();
   let reply = 'You are so much more than your skin. Vitiligo is autoimmune—never contagious—and consistent care with confidence makes all the difference. 💛';
-  if (lower.includes('stare') || lower.includes('public') || lower.includes('confident')) {
+  if (lower === 'hi' || lower === 'hello' || lower === 'hey' || lower.startsWith('hi ') || lower.startsWith('hello ')) {
+    reply = 'Hello! 💛 I am VitiBuddy, your supportive Vitiverse companion. How are you feeling today, or is there anything on your mind I can help with?';
+  } else if (lower.includes('your name') || lower.includes('who are you')) {
+    reply = 'I am VitiBuddy! 💛 I am here to support you with vitiligo care tips, confidence coaching, and a judgment-free space whenever you want to talk.';
+  } else if (lower.includes('stare') || lower.includes('public') || lower.includes('confident')) {
     reply = 'When people look, it is almost always curiosity rather than judgment. A warm smile or saying "It is vitiligo—just unique skin pigment!" turns awkwardness into connection. 💛';
   } else if (lower.includes('child') || lower.includes('kid') || lower.includes('school')) {
     reply = 'Framing vitiligo for children as unique "starlight spots" or "constellations on skin" builds lifelong self-love and helps them explain it proudly to friends. 🌟';
   } else if (lower.includes('anxious') || lower.includes('phototherapy') || lower.includes('uv') || lower.includes('slow')) {
     reply = 'Repigmentation takes patience—tiny follicular dots around hair roots are often the very first sign of progress. Celebrate showing up consistently for your care today! 🌱';
   }
-  res.json({ reply });
+  res.json({ reply, source: 'fallback' });
 });
 
 app.listen(PORT, () => console.log(`Vitiverse Node server live on port ${PORT}`));
