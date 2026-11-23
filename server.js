@@ -10,19 +10,47 @@ const DB_FILE = path.join(__dirname, 'data.json');
 app.use(cors());
 app.use(express.json());
 
-const DEFAULT_DATA = { stories: [], moods: [], sessions: [], scans: [], questions: [], appointments: [] };
-const readDB = () => fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) : DEFAULT_DATA;
+const DEFAULT_DATA = {
+  stories: [],
+  moods: [],
+  sessions: [],
+  scans: [],
+  questions: [],
+  appointments: []
+};
+
+const readDB = () => {
+  if (!fs.existsSync(DB_FILE)) {
+    fs.writeFileSync(DB_FILE, JSON.stringify(DEFAULT_DATA, null, 2));
+  }
+  const parsed = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+  return { ...DEFAULT_DATA, ...parsed };
+};
+
 const writeDB = (data) => fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-const nowStr = (time = true) => new Date().toLocaleString('en-US', time ? { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' } : { month: 'short', day: '2-digit' });
+
+const nowStr = (time = true) =>
+  new Date().toLocaleString('en-US', time
+    ? { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }
+    : { month: 'short', day: '2-digit' });
 
 app.get('/', (req, res) => res.json({ message: 'Vitiverse Node.js + JSON API is Live', health: '/api/health' }));
 app.get('/api/health', (req, res) => res.json({ status: 'OK', project: 'Vitiverse', database: 'JSON Store' }));
 
+// Stories
 app.get('/api/stories', (req, res) => res.json(readDB().stories));
 app.post('/api/stories', (req, res) => {
   const db = readDB();
   const { title = 'Untitled Journey', body = '', is_anonymous = true } = req.body || {};
-  const item = { id: Date.now(), title, body, is_anonymous: Boolean(is_anonymous), author: is_anonymous ? 'Anonymous Member • Verified' : 'Community Member • Verified', hearts: 1, created_at: nowStr(true) };
+  const item = {
+    id: Date.now(),
+    title,
+    body,
+    is_anonymous: Boolean(is_anonymous),
+    author: is_anonymous ? 'Anonymous Member • Verified' : 'Community Member • Verified',
+    hearts: 1,
+    created_at: nowStr(true)
+  };
   db.stories.unshift(item);
   writeDB(db);
   res.status(201).json(item);
@@ -37,6 +65,8 @@ app.post('/api/stories/:id/heart', (req, res) => {
   res.json({ hearts: item.hearts });
 });
 
+// Moods
+app.get('/api/moods', (req, res) => res.json(readDB().moods));
 app.post('/api/moods', (req, res) => {
   const db = readDB();
   const { score = 4, note = '' } = req.body || {};
@@ -46,6 +76,7 @@ app.post('/api/moods', (req, res) => {
   res.status(201).json(item);
 });
 
+// Phototherapy Sessions
 app.get('/api/sessions', (req, res) => res.json(readDB().sessions));
 app.post('/api/sessions', (req, res) => {
   const db = readDB();
@@ -57,6 +88,8 @@ app.post('/api/sessions', (req, res) => {
   res.status(201).json(item);
 });
 
+// Skin Diary Scans
+app.get('/api/scans', (req, res) => res.json(readDB().scans));
 app.post('/api/scans', (req, res) => {
   const db = readDB();
   const { case_title = 'Skin Patch Scan', status = 'ACTIVE', area_cm2 = '4.6 cm²' } = req.body || {};
@@ -66,34 +99,63 @@ app.post('/api/scans', (req, res) => {
   res.status(201).json(item);
 });
 
+// Community Q&A
 app.get('/api/questions', (req, res) => res.json(readDB().questions));
 app.post('/api/questions', (req, res) => {
   const db = readDB();
-  const item = { id: Date.now(), question_text: req.body?.question_text || '', answer_text: 'Awaiting community & dermatologist replies...', created_at: nowStr(false) };
+  const item = {
+    id: Date.now(),
+    question_text: req.body?.question_text || '',
+    answer_text: 'Awaiting community & dermatologist replies...',
+    created_at: nowStr(false)
+  };
   db.questions.unshift(item);
   writeDB(db);
   res.status(201).json(item);
 });
 
+// Specialist Appointments
+app.get('/api/appointments', (req, res) => res.json(readDB().appointments));
 app.post('/api/appointments', (req, res) => {
   const db = readDB();
-  const item = { id: Date.now(), doctor_name: req.body?.doctor_name || 'Specialist', patient_persona: req.body?.patient_persona || 'Adult / Self', created_at: nowStr(true) };
+  const item = {
+    id: Date.now(),
+    doctor_name: req.body?.doctor_name || 'Specialist',
+    patient_persona: req.body?.patient_persona || 'Adult / Self',
+    created_at: nowStr(true)
+  };
   db.appointments.unshift(item);
   writeDB(db);
   res.status(201).json(item);
 });
 
+// VitiBuddy AI Chat
 app.post('/api/chat', async (req, res) => {
   const msg = (req.body?.message || '').trim();
   if (process.env.GEMINI_API_KEY) {
     try {
       const { GoogleGenAI } = require('@google/genai');
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const r = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: `You are VitiBuddy, an empathetic Vitiligo support companion. Reply in 2-3 warm sentences in the user's language (English/Hindi). Never diagnose.\n\nUser: ${msg}` });
+      const r = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `You are VitiBuddy, an empathetic Vitiligo support companion. Reply warmly in 2-3 sentences in the user's language (English or Hindi). Never diagnose medically.\n\nUser: ${msg}`
+      });
       return res.json({ reply: r.text });
-    } catch {}
+    } catch (e) {
+      console.error('Gemini fallback:', e.message);
+    }
   }
-  res.json({ reply: 'You are so much more than your skin. Vitiligo is autoimmune—never contagious—and consistent care makes all the difference. 💛' });
+
+  const lower = msg.toLowerCase();
+  let reply = 'You are so much more than your skin. Vitiligo is autoimmune—never contagious—and consistent care with confidence makes all the difference. 💛';
+  if (lower.includes('stare') || lower.includes('public') || lower.includes('confident')) {
+    reply = 'When people look, it is almost always curiosity rather than judgment. A warm smile or saying "It is vitiligo—just unique skin pigment!" turns awkwardness into connection. 💛';
+  } else if (lower.includes('child') || lower.includes('kid') || lower.includes('school')) {
+    reply = 'Framing vitiligo for children as unique "starlight spots" or "constellations on skin" builds lifelong self-love and helps them explain it proudly to friends. 🌟';
+  } else if (lower.includes('anxious') || lower.includes('phototherapy') || lower.includes('uv') || lower.includes('slow')) {
+    reply = 'Repigmentation takes patience—tiny follicular dots around hair roots are often the very first sign of progress. Celebrate showing up consistently for your care today! 🌱';
+  }
+  res.json({ reply });
 });
 
 app.listen(PORT, () => console.log(`Vitiverse Node server live on port ${PORT}`));

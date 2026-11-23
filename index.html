@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
   <meta charset="UTF-8" />
@@ -889,12 +889,12 @@
     </div>
   </footer>
 
-  <!-- Interactive JavaScript Engine (Flask SQLite + Static Fallback) -->
+  <!-- Interactive JavaScript Engine (Full Node.js + JSON Cloud Sync) -->
   <script>
     const API_BASE = "https://vitiverse.onrender.com/api";
     let backendOnline = false;
+    let activePersonaLabel = "Adult / Self";
 
-    // 1. Language Switcher (English / Hindi)
     function setLanguage(lang) {
       document.getElementById('lang-en').className = lang === 'en'
         ? 'px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-indigo-800 shadow-sm transition-all'
@@ -913,20 +913,23 @@
       );
     }
 
-    // 2. User Identity Personalization Switcher
     const PERSONA_DATA = {
       adult: {
+        label: 'Adult / Self',
         banner: '✨ Tailored for <strong>Self-Care & Confidence</strong>: Track patch stability, explore occasion skin tints, and connect with peers.'
       },
       parent: {
+        label: 'Parent / Child Care',
         banner: '👨🏽‍👧🏽 Tailored for <strong>Parents & Child Care</strong>: Gentle explanations for kids, school awareness guides, and pediatric dermatologists.'
       },
       newly: {
+        label: 'Newly Diagnosed',
         banner: '🌱 Tailored for <strong>Newly Diagnosed</strong>: Step-by-step first-patch guide, myth busting, and calming support with VitiBuddy.'
       }
     };
 
     function setUserPersona(key) {
+      activePersonaLabel = PERSONA_DATA[key].label;
       ['adult', 'parent', 'newly'].forEach(p => {
         const btn = document.getElementById(`persona-${p}`);
         btn.className = p === key
@@ -936,11 +939,10 @@
       document.getElementById('persona-banner').innerHTML = PERSONA_DATA[key].banner;
     }
 
-    // 3. AI Skin Tracker & Analyzer ('Active' vs 'Stable')
     const SKIN_CASES = {
       activePatch: {
         title: 'Forearm Macule — Trichrome Margin Check',
-        sub: 'Captured: Nov 15, 2026 • Auto-Calibrated',
+        sub: 'Captured: Nov 2026 • Auto-Calibrated',
         confidence: '95.8%',
         status: 'ACTIVE',
         label: 'Status: ACTIVE PATCH',
@@ -957,7 +959,7 @@
       },
       stablePatch: {
         title: 'Dorsal Hand Patch — Well-Demarcated Border',
-        sub: 'Captured: Nov 15, 2026 • 6-Month Follow-up',
+        sub: 'Captured: Nov 2026 • 6-Month Follow-up',
         confidence: '97.4%',
         status: 'STABLE',
         label: 'Status: STABLE PATCH',
@@ -1074,19 +1076,24 @@
       reader.readAsDataURL(file);
     }
 
-    function saveToSkinDiary() {
+    async function saveToSkinDiary() {
+      const data = SKIN_CASES[currentSkinKey];
+      const title = document.getElementById('skin-case-title').innerText;
+      try {
+        const res = await fetch(`${API_BASE}/scans`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ case_title: title, status: data.status, area_cm2: data.area })
+        });
+        if (res.ok) {
+          showToast('Saved to Cloud Skin Diary', `${data.status} scan (${data.area}) archived in Vitiverse.`);
+          return;
+        }
+      } catch {}
       showToast('Saved to Skin Diary', 'Timestamped patch snapshot & stability score archived.');
     }
 
-    // 4. VitiBuddy AI Companion & Mood Journal (Connected to Flask SQLite)
-    const BUDDY_REPLIES = [
-      "You are so much more than your skin. When people look, it's usually curiosity, not judgment—a warm smile or simple 'It's vitiligo, just unique pigment!' often turns awkwardness into connection. 💛",
-      "For children, framing vitiligo as unique 'starlight spots' or 'art on skin' builds lifelong self-love. Would you like a kid-friendly story to read together?",
-      "Repigmentation takes patience, and every small follicular dot is progress. Remember to celebrate consistency with your care routine today! 🌱",
-      "I hear you, and it's completely okay to feel this way. Taking 3 deep breaths and logging your mood helps release stress. I'm right here with you."
-    ];
-    let buddyReplyIdx = 0;
-
+    // VitiBuddy AI Chat + Browser Speech Recognition
     function appendChat(sender, text) {
       const box = document.getElementById('chat-messages');
       const div = document.createElement('div');
@@ -1104,32 +1111,65 @@
       box.scrollTop = box.scrollHeight;
     }
 
+    async function askVitiBuddy(msg) {
+      appendChat('user', msg);
+      try {
+        const res = await fetch(`${API_BASE}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: msg })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          appendChat('buddy', data.reply);
+          return;
+        }
+      } catch {}
+      appendChat('buddy', 'You are so much more than your skin. Vitiligo is autoimmune—never contagious—and consistent care makes all the difference. 💛');
+    }
+
     function handleChatSubmit(e) {
       e.preventDefault();
       const input = document.getElementById('chat-input');
       const msg = input.value.trim();
       if (!msg) return;
-      appendChat('user', msg);
       input.value = '';
-      setTimeout(() => {
-        appendChat('buddy', BUDDY_REPLIES[buddyReplyIdx % BUDDY_REPLIES.length]);
-        buddyReplyIdx++;
-      }, 450);
+      askVitiBuddy(msg);
     }
 
     function sendQuickPrompt(promptText) {
-      appendChat('user', promptText);
-      setTimeout(() => {
-        appendChat('buddy', BUDDY_REPLIES[buddyReplyIdx % BUDDY_REPLIES.length]);
-        buddyReplyIdx++;
-      }, 450);
+      askVitiBuddy(promptText);
     }
 
     let voiceActive = false;
     function toggleVoiceAssistant() {
-      voiceActive = !voiceActive;
       const btn = document.getElementById('voice-btn');
       const label = document.getElementById('voice-btn-text');
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      if (!voiceActive && SpeechRec) {
+        const recognition = new SpeechRec();
+        recognition.lang = 'en-IN';
+        voiceActive = true;
+        btn.classList.add('voice-pulse', 'bg-teal-600', 'text-white');
+        btn.classList.remove('bg-teal-50', 'text-teal-800');
+        label.innerText = 'Listening... Speak now';
+
+        recognition.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          askVitiBuddy(transcript);
+        };
+        recognition.onend = () => {
+          voiceActive = false;
+          btn.classList.remove('voice-pulse', 'bg-teal-600', 'text-white');
+          btn.classList.add('bg-teal-50', 'text-teal-800');
+          label.innerText = 'Talk to VitiBuddy';
+        };
+        recognition.start();
+        return;
+      }
+
+      voiceActive = !voiceActive;
       if (voiceActive) {
         btn.classList.add('voice-pulse', 'bg-teal-600', 'text-white');
         btn.classList.remove('bg-teal-50', 'text-teal-800');
@@ -1142,6 +1182,7 @@
       }
     }
 
+    // Mood Journal
     const MOODS = {
       1: { emoji: '😔', label: 'Overwhelmed / Low (1 / 5)' },
       2: { emoji: '😕', label: 'A Bit Anxious (2 / 5)' },
@@ -1166,17 +1207,18 @@
           body: JSON.stringify({ score: val, note })
         });
         if (res.ok) {
-          document.getElementById('mood-history').innerText = `Saved to SQLite DB: ${MOODS[val].emoji} ${MOODS[val].label}`;
-          showToast('Mood Entry Logged', 'Saved permanently to vitiverse.db.');
+          document.getElementById('mood-history').innerText = `Saved to Cloud DB: ${MOODS[val].emoji} ${MOODS[val].label}`;
+          showToast('Mood Entry Logged', 'Saved permanently to Vitiverse cloud store.');
+          document.getElementById('mood-note').value = '';
+          return;
         }
-      } catch {
-        document.getElementById('mood-history').innerText = `Saved just now: ${MOODS[val].emoji} ${MOODS[val].label} • Streak: 7 Days`;
-        showToast('Mood Entry Logged', 'Your private emotional wellbeing journal has been updated.');
-      }
+      } catch {}
+      document.getElementById('mood-history').innerText = `Saved just now: ${MOODS[val].emoji} ${MOODS[val].label} • Streak: 7 Days`;
+      showToast('Mood Entry Logged', 'Your private emotional wellbeing journal has been updated.');
       document.getElementById('mood-note').value = '';
     }
 
-    // 5. Community Hub: Journey Wall & Q&A (Connected to Flask SQLite)
+    // Community Journey Wall & Q&A
     function renderStoryCard(story) {
       const avatar = story.is_anonymous ? '🎭' : 'DV';
       const card = document.createElement('div');
@@ -1192,7 +1234,7 @@
         <h4 class="font-bold text-sm text-slate-900">"${story.title}"</h4>
         <p class="text-xs text-slate-600 mt-1 leading-relaxed">${story.body}</p>
         <div class="mt-2.5 flex items-center gap-4 text-xs text-slate-500">
-          <button onclick="likeStory(this)" class="hover:text-teal-700 font-semibold flex items-center gap-1">💛 <span>${story.hearts} Heart</span></button>
+          <button onclick="likeStory(this, ${story.id || 0})" class="hover:text-teal-700 font-semibold flex items-center gap-1">💛 <span>${story.hearts} ${story.hearts === 1 ? 'Heart' : 'Hearts'}</span></button>
           <span class="font-mono text-[11px] text-indigo-700">#VitiverseJourney</span>
         </div>
       `;
@@ -1214,7 +1256,7 @@
         if (!res.ok) throw new Error("API error");
         const savedStory = await res.json();
         renderStoryCard(savedStory);
-        showToast(isAnon ? 'Posted Anonymously' : 'Story Published', 'Saved permanently to vitiverse.db!');
+        showToast(isAnon ? 'Posted Anonymously' : 'Story Published', 'Saved permanently to Vitiverse cloud store!');
       } catch {
         renderStoryCard({
           title,
@@ -1231,30 +1273,60 @@
       document.getElementById('story-body').value = '';
     }
 
-    function likeStory(btn) {
+    async function likeStory(btn, storyId = 0) {
       const span = btn.querySelector('span');
       const num = parseInt(span.innerText) || 1;
       span.innerText = `${num + 1} Hearts`;
+      if (storyId) {
+        try {
+          const res = await fetch(`${API_BASE}/stories/${storyId}/heart`, { method: "POST" });
+          if (res.ok) {
+            const data = await res.json();
+            span.innerText = `${data.hearts} Hearts`;
+          }
+        } catch {}
+      }
     }
 
-    function addCommunityQuestion(e) {
+    function renderQuestionCard(q) {
+      const item = document.createElement('div');
+      item.className = 'bg-white rounded-2xl p-3.5 border border-teal-300';
+      item.innerHTML = `
+        <div class="flex justify-between items-center">
+          <span class="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-teal-100 text-teal-800">Community Question</span>
+          <span class="text-[10px] font-mono text-slate-400">${q.created_at || 'Just now'}</span>
+        </div>
+        <h4 class="font-bold text-sm text-slate-900 mt-1">${q.question_text}</h4>
+        <p class="text-[11px] text-slate-500 mt-1">${q.answer_text || 'Awaiting community & dermatologist replies...'}</p>
+      `;
+      document.getElementById('qa-list').prepend(item);
+    }
+
+    async function addCommunityQuestion(e) {
       e.preventDefault();
       const input = document.getElementById('qa-input');
       const qText = input.value.trim();
       if (!qText) return;
-      const item = document.createElement('div');
-      item.className = 'bg-white rounded-2xl p-3.5 border border-teal-300';
-      item.innerHTML = `
-        <span class="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-teal-100 text-teal-800">New Question</span>
-        <h4 class="font-bold text-sm text-slate-900 mt-1">${qText}</h4>
-        <p class="text-[11px] text-slate-500 mt-1">Awaiting community &amp; dermatologist replies...</p>
-      `;
-      document.getElementById('qa-list').prepend(item);
       input.value = '';
+
+      try {
+        const res = await fetch(`${API_BASE}/questions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question_text: qText })
+        });
+        if (res.ok) {
+          const saved = await res.json();
+          renderQuestionCard(saved);
+          showToast('Question Saved', 'Posted to Vitiverse Community Q&A.');
+          return;
+        }
+      } catch {}
+      renderQuestionCard({ question_text: qText });
       showToast('Question Posted', 'Notified experienced members & dermatologists.');
     }
 
-    // 6. Daily Myth vs. Fact Quiz
+    // Myth vs Fact Quiz
     const MYTH_CARDS = [
       {
         q: '"Drinking milk right after eating fish or sour foods causes Vitiligo."',
@@ -1288,7 +1360,7 @@
       document.getElementById('quiz-feedback').classList.add('hidden');
     }
 
-    // 7. Specialist Map & Phototherapy Session Tracker (Connected to Flask SQLite)
+    // Specialists & Phototherapy Session Tracker
     function highlightDoctor(idx) {
       [0, 1].forEach(i => {
         document.getElementById(`doc-card-${i}`).className = i === idx
@@ -1297,7 +1369,18 @@
       });
     }
 
-    function bookDoctor(docName) {
+    async function bookDoctor(docName) {
+      try {
+        const res = await fetch(`${API_BASE}/appointments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ doctor_name: docName, patient_persona: activePersonaLabel })
+        });
+        if (res.ok) {
+          showToast('Consultation Booked', `Confirmed slot with ${docName} (${activePersonaLabel}).`);
+          return;
+        }
+      } catch {}
       showToast('Consultation Requested', `Appointment slot reserved with ${docName}.`);
     }
 
@@ -1326,7 +1409,7 @@
         const saved = await res.json();
         sessionCount = saved.session_number;
         renderSessionRow(saved.session_number, saved.duration_sec, saved.dose_mj, "Saved to DB");
-        showToast('Phototherapy Session Logged', `Session #${saved.session_number} saved to vitiverse.db.`);
+        showToast('Phototherapy Session Logged', `Session #${saved.session_number} saved to Vitiverse cloud store.`);
       } catch {
         if (sessionCount < totalSessions) sessionCount++;
         renderSessionRow(sessionCount, 45, 450, "Logged Today");
@@ -1334,7 +1417,6 @@
       }
     }
 
-    // Toast Utility
     function showToast(title, sub) {
       document.getElementById('toast-title').innerText = title;
       document.getElementById('toast-sub').innerText = sub;
@@ -1345,38 +1427,54 @@
       }, 3200);
     }
 
-    // Initialize Default State & Sync Saved SQLite Records
-    window.addEventListener('DOMContentLoaded', async () => {
-      selectSkinCase('activePatch');
+    // Auto-Retry Sync so Render cold-starts never leave the app in Preview Mode
+    async function connectToBackend(retries = 6) {
+      const badge = document.getElementById('db-status-badge');
+      badge.innerText = "Waking Server...";
 
-      try {
-        const healthRes = await fetch(`${API_BASE}/health`);
-        if (healthRes.ok) {
-          backendOnline = true;
-          const badge = document.getElementById('db-status-badge');
-          badge.innerText = "SQLite DB Connected";
-          badge.className = "hidden lg:inline-block ml-2 text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold";
-        }
+      for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+          const healthRes = await fetch(`${API_BASE}/health`);
+          if (healthRes.ok) {
+            backendOnline = true;
+            badge.innerText = "Live DB Connected";
+            badge.className = "hidden lg:inline-block ml-2 text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold";
 
-        const storiesRes = await fetch(`${API_BASE}/stories`);
-        if (storiesRes.ok) {
-          const stories = await storiesRes.json();
-          stories.reverse().forEach(renderStoryCard);
-        }
+            const [storiesRes, sessionsRes, questionsRes] = await Promise.all([
+              fetch(`${API_BASE}/stories`),
+              fetch(`${API_BASE}/sessions`),
+              fetch(`${API_BASE}/questions`)
+            ]);
 
-        const sessionsRes = await fetch(`${API_BASE}/sessions`);
-        if (sessionsRes.ok) {
-          const sessions = await sessionsRes.json();
-          if (sessions.length > 0) {
-            sessions.reverse().forEach(s => {
-              sessionCount = s.session_number;
-              renderSessionRow(s.session_number, s.duration_sec, s.dose_mj, s.created_at);
-            });
+            if (storiesRes.ok) {
+              const stories = await storiesRes.json();
+              stories.reverse().forEach(renderStoryCard);
+            }
+            if (sessionsRes.ok) {
+              const sessions = await sessionsRes.json();
+              if (sessions.length > 0) {
+                sessions.reverse().forEach(s => {
+                  sessionCount = s.session_number;
+                  renderSessionRow(s.session_number, s.duration_sec, s.dose_mj, s.created_at);
+                });
+              }
+            }
+            if (questionsRes.ok) {
+              const questions = await questionsRes.json();
+              questions.reverse().forEach(renderQuestionCard);
+            }
+            return;
           }
+        } catch {
+          await new Promise(res => setTimeout(res, 7000));
         }
-      } catch {
-        console.log("Backend offline — running in standalone preview mode.");
       }
+      badge.innerText = "Preview Mode";
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      selectSkinCase('activePatch');
+      connectToBackend();
     });
   </script>
 </body>
