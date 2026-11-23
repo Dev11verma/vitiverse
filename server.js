@@ -15,19 +15,27 @@ app.use(express.json({ limit: '10mb' }));
 // --- Dual Storage Layer (MongoDB Atlas Primary + Local JSON Fallback) ---
 let mongoDb = null;
 
-async function connectMongo() {
+async function connectMongo(retries = 3) {
   if (!MONGODB_URI) {
     console.log('MONGODB_URI not set—running with local data.json storage.');
     return;
   }
-  try {
-    const client = new MongoClient(MONGODB_URI);
-    await client.connect();
-    mongoDb = client.db('vitiverse');
-    console.log('Connected to MongoDB Atlas (vitiverse database) ✅');
-  } catch (err) {
-    console.error('MongoDB connection failed, falling back to data.json:', err.message);
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const client = new MongoClient(MONGODB_URI, {
+        serverSelectionTimeoutMS: 8000,
+        tls: true
+      });
+      await client.connect();
+      mongoDb = client.db('vitiverse');
+      console.log('Connected to MongoDB Atlas (vitiverse database) ✅');
+      return;
+    } catch (err) {
+      console.error(`MongoDB attempt ${attempt}/${retries} failed:`, err.message);
+      if (attempt < retries) await new Promise(r => setTimeout(r, 2500));
+    }
   }
+  console.error('MongoDB unavailable after retries, falling back to data.json');
 }
 
 const DEFAULT_DATA = {
