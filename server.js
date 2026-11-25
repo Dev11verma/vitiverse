@@ -191,6 +191,33 @@ app.post('/api/appointments', async (req, res) => {
   res.status(201).json(item);
 });
 
+async function getPrioritizedGeminiModels(apiKey, geminiOnly = false) {
+  let fallback = geminiOnly
+    ? ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-2.5-flash-lite']
+    : ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-2.5-flash-lite', 'gemma-3-27b-it'];
+  try {
+    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
+    if (listRes.ok) {
+      const listData = await listRes.json();
+      const available = (listData.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map(m => m.name.replace('models/', ''))
+        .filter(name => !name.includes('embedding') && !name.includes('tts') && !name.includes('image'))
+        .filter(name => !geminiOnly || name.includes('gemini'));
+      if (available.length > 0) {
+        const prioritized = [
+          ...available.filter(n => n.includes('3.8-flash')),
+          ...available.filter(n => n.includes('2.5-flash') && !n.includes('lite')),
+          ...available.filter(n => n.includes('flash')),
+          ...available.filter(n => n.includes('gemma-3-27b'))
+        ];
+        return [...new Set([...prioritized, ...available])].slice(0, 6);
+      }
+    }
+  } catch {}
+  return fallback;
+}
+
 // Module 01: Real Gemini Vision Skin Patch Analysis (Strict Skin Gate + Native JSON Mode)
 app.post('/api/analyze-patch', async (req, res) => {
   const { imageBase64 = '', mimeType = 'image/jpeg', caseTitle = 'Uploaded Patch Scan' } = req.body || {};
@@ -225,27 +252,8 @@ STEP 2 (PIGMENT ASSESSMENT):
 
 Return ONLY a JSON object with keys: is_skin, status, confidence, area_cm2, border_index, repigmentation, observations, care_tip.`;
 
-  let candidateModels = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-2.5-flash-lite'];
-  try {
-    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
-    if (listRes.ok) {
-      const listData = await listRes.json();
-      const available = (listData.models || [])
-        .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
-        .map(m => m.name.replace('models/', ''))
-        .filter(name => name.includes('gemini') && !name.includes('embedding') && !name.includes('tts'));
-      if (available.length > 0) {
-        const prioritized = [
-          ...available.filter(n => n.includes('3.8-flash')),
-          ...available.filter(n => n.includes('2.5-flash') && !n.includes('lite')),
-          ...available.filter(n => n.includes('flash'))
-        ];
-        candidateModels = [...new Set([...prioritized, ...available])].slice(0, 5);
-      }
-    }
-  } catch {}
-
-  for (const model of candidateModels) {
+  const models = await getPrioritizedGeminiModels(apiKey, true);
+  for (const model of models) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
     try {
@@ -302,12 +310,14 @@ Return ONLY a JSON object with keys: is_skin, status, confidence, area_cm2, bord
     border_index: 'N/A',
     repigmentation: 'N/A',
     observations: 'The Vision server took too long to wake up. Please re-select your image once to run the live scan.',
-    care_tip: 'Tip: Keep the server warm or retry within a few seconds.'
+    care_tip: 'Ensure a clear, well-lit image under 8 MB.'
   });
 });
-// VitiBuddy AI Chat (True Multilingual Open-Ended Gemini AI + Auto-Discovery)
+
+// VitiBuddy AI Chat (Scan-Aware + Multilingual Open-Ended Gemini AI)
 app.post('/api/chat', async (req, res) => {
   const msg = (req.body?.message || '').trim();
+  const scanContext = (req.body?.scanContext || '').trim();
   const apiKey = (process.env.GEMINI_API_KEY || '').trim();
 
   if (!apiKey) {
@@ -316,38 +326,19 @@ app.post('/api/chat', async (req, res) => {
 
   const systemPrompt = `You are VitiBuddy, an intelligent, warm, empathetic AI companion on the Vitiverse platform.
 Rules:
-1. Respond naturally to ANYTHING the user says or asks—whether it is about Vitiligo, skincare, confidence, daily life, general knowledge, or casual conversation.
-2. ALWAYS reply in the exact same language and script/style the user used (e.g., if they write in English, reply in English; if Hindi, reply in Hindi; if Hinglish, reply in Hinglish; if Punjabi/Spanish/etc., reply in that language).
-3. Keep answers helpful, conversational, and concise (2-4 sentences unless they ask for more detail).
-4. Never give formal medical prescriptions; suggest consulting a dermatologist for medical treatment decisions.
+1. Respond directly and intelligently to ANYTHING the user asks—including specific questions about their AI Skin Scanner results, confidence percentages, border sharpness, follicular islands, skincare, emotional support, or general conversation.
+2. ALWAYS reply in the exact same language and script/style the user used (e.g., if they write in Hinglish like "Bhaii mujhe patch ki actual condition Jan nii", reply in natural, clear Hinglish; if Hindi, reply in Hindi; if English, reply in English; if Punjabi/Spanish/etc., reply in that language).
+3. If the user asks about "95%", "confidence", "scan", or their patch condition, explain clearly what the AI Diagnostic Output metrics mean (e.g., Confidence % is the AI model's visual certainty in classifying border contrast; Active vs. Stable indicates whether borders look feathered or sharp; Follicular Islands are early pigment dots around hair roots) using the Current Screen Scan Context below if provided.
+4. Keep answers clear, conversational, and helpful (3-5 sentences). Never give formal medical prescriptions; recommend consulting a dermatologist for treatment decisions.
 
+${scanContext ? `Current Screen Scan Context from Module 01:\n${scanContext}\n` : ''}
 User message: ${msg}`;
 
   try {
-    let candidateModels = ['gemini-3.8-flash', 'gemini-2.5-flash-lite', 'gemma-3-27b-it'];
-    try {
-      const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
-      if (listRes.ok) {
-        const listData = await listRes.json();
-        const available = (listData.models || [])
-          .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
-          .map(m => m.name.replace('models/', ''))
-          .filter(name => !name.includes('embedding') && !name.includes('vision') && !name.includes('tts') && !name.includes('image'));
-        if (available.length > 0) {
-          const prioritized = [
-            ...available.filter(n => n.includes('3.8-flash')),
-            ...available.filter(n => n.includes('flash') && !n.includes('3.8')),
-            ...available.filter(n => n.includes('gemma-3-27b')),
-            ...available.filter(n => n.includes('pro'))
-          ];
-          candidateModels = [...new Set([...prioritized, ...available])].slice(0, 6);
-        }
-      }
-    } catch {}
-
+    const candidateModels = await getPrioritizedGeminiModels(apiKey, false);
     for (const model of candidateModels) {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 12000);
+      const timer = setTimeout(() => controller.abort(), 16000);
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
         const apiRes = await fetch(url, {
@@ -372,8 +363,8 @@ User message: ${msg}`;
     console.error('VitiBuddy fatal error:', fatal.message);
   }
 
-  res.json({
-    reply: 'Gemini is experiencing a temporary spike right now—please send your message again in a few seconds! 💛',
+  res.status(503).json({
+    reply: 'Gemini is waking up right now—please hit Send once more in 2 seconds! 💛',
     source: 'error'
   });
 });
