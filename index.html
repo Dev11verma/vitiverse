@@ -1497,24 +1497,33 @@ document.addEventListener('DOMContentLoaded', () => {
   const fileInput = document.querySelector('input[type="file"]');
   if (!fileInput) return;
 
-  fileInput.addEventListener('change', async (e) => {
+  // Locate the real AI DIAGNOSTIC OUTPUT card on the page
+  const findDiagnosticCard = () => {
+    const allEls = Array.from(document.querySelectorAll('div, section'));
+    return allEls.find(el => el.textContent.includes('AI DIAGNOSTIC OUTPUT') && el.textContent.includes('Border Sharpness Index'));
+  };
+
+  fileInput.addEventListener('change', (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Create or reuse AI Vision result banner inside Module 01
-    let banner = document.getElementById('ai-vision-result');
-    if (!banner) {
-      banner = document.createElement('div');
-      banner.id = 'ai-vision-result';
-      banner.className = 'mt-4 p-4 rounded-2xl bg-teal-50 border border-teal-200 text-slate-800 text-xs sm:text-sm space-y-1.5';
-      fileInput.closest('div')?.parentElement?.appendChild(banner);
+    const card = findDiagnosticCard();
+    if (card) {
+      card.innerHTML = `
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+          <span class="text-xs font-bold tracking-wider text-slate-400 uppercase">AI DIAGNOSTIC OUTPUT</span>
+          <span class="px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-semibold animate-pulse">Scanning via Gemini Vision...</span>
+        </div>
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-2">
+          <div class="text-sm font-bold text-slate-700">Analyzing ${file.name}...</div>
+          <p class="text-xs text-slate-500">Verifying human skin region, melanin contrast, and border margins.</p>
+        </div>
+      `;
     }
-    banner.innerHTML = `<div class="font-semibold text-teal-800 animate-pulse">🔍 Analyzing patch image with Gemini Vision...</div>`;
 
     const reader = new FileReader();
     reader.onload = async () => {
-      const dataUrl = reader.result;
-      const base64 = dataUrl.split(',')[1];
+      const base64 = reader.result.split(',')[1];
       const baseUrl = (typeof API_BASE !== 'undefined') ? API_BASE : 'https://vitiverse.onrender.com/api';
 
       try {
@@ -1528,28 +1537,59 @@ document.addEventListener('DOMContentLoaded', () => {
           })
         });
         const ai = await res.json();
-        banner.innerHTML = `
-          <div class="flex items-center justify-between">
-            <span class="font-bold text-teal-900">✨ Gemini Vision Assessment (${ai.status})</span>
-            <span class="px-2 py-0.5 rounded-full bg-teal-600 text-white text-[11px] font-semibold">Est. Area: ${ai.area_cm2}</span>
-          </div>
-          <p class="text-slate-700 leading-relaxed">${ai.observations}</p>
-          <p class="text-teal-800 font-medium">💡 Tip: ${ai.care_tip}</p>
-          <p class="text-[11px] text-slate-400 italic">Educational AI screening only—consult a dermatologist for medical diagnosis.</p>
-        `;
 
-        // Auto-save scan entry to backend diary
-        await fetch(`${baseUrl}/scans`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            case_title: ai.case_title,
-            status: ai.status,
-            area_cm2: ai.area_cm2
-          })
-        });
+        const isSkin = ai.is_skin !== false;
+        const boxStyle = !isSkin
+          ? 'bg-rose-50 border-rose-200 text-rose-900'
+          : (ai.status.includes('STABLE') || ai.status.includes('REPIGMENT')
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : 'bg-amber-50 border-amber-200 text-amber-900');
+
+        if (card) {
+          card.innerHTML = `
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <span class="text-xs font-bold tracking-wider text-slate-400 uppercase">AI DIAGNOSTIC OUTPUT</span>
+              <span class="px-3 py-1 rounded-full bg-teal-50 text-teal-700 text-xs font-semibold">Confidence: ${ai.confidence}</span>
+            </div>
+            <div class="p-4 rounded-2xl border ${boxStyle} space-y-2 mb-4">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-extrabold tracking-wide uppercase">STATUS: ${ai.status}</span>
+                <span class="text-xs font-bold">${ai.area_cm2}</span>
+              </div>
+              <p class="text-xs leading-relaxed opacity-90">${ai.observations}</p>
+            </div>
+            <div class="space-y-2.5 text-xs mb-4">
+              <div class="flex justify-between py-1.5 border-b border-slate-100">
+                <span class="text-slate-500">Border Sharpness Index</span>
+                <span class="font-bold text-slate-800">${ai.border_index}</span>
+              </div>
+              <div class="flex justify-between py-1.5 border-b border-slate-100">
+                <span class="text-slate-500">Repigmentation / Follicular Islands</span>
+                <span class="font-bold text-indigo-600">${ai.repigmentation}</span>
+              </div>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50 text-xs text-slate-600">
+              <span class="font-semibold text-slate-800">💡 Guidance:</span> ${ai.care_tip}
+            </div>
+          `;
+        }
+
+        // Only save valid human skin scans to MongoDB Skin Diary
+        if (isSkin) {
+          await fetch(`${baseUrl}/scans`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              case_title: ai.case_title,
+              status: ai.status,
+              area_cm2: ai.area_cm2
+            })
+          });
+        }
       } catch (err) {
-        banner.innerHTML = `<div class="text-amber-700">⚠️ Could not reach Vision AI right now. Preview saved locally.</div>`;
+        if (card) {
+          card.innerHTML = `<div class="p-4 rounded-xl bg-rose-50 text-rose-700 text-xs">⚠️ Could not connect to Vision AI. Please try again.</div>`;
+        }
       }
     };
     reader.readAsDataURL(file);
@@ -1557,4 +1597,3 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 </body>
-</html>

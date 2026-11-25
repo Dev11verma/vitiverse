@@ -191,7 +191,7 @@ app.post('/api/appointments', async (req, res) => {
   res.status(201).json(item);
 });
 
-// Module 01: Real Gemini Vision Skin Patch Analysis
+// Module 01: Real Gemini Vision Skin Patch Analysis (With Non-Skin Detection & Auto-Discovery)
 app.post('/api/analyze-patch', async (req, res) => {
   const { imageBase64 = '', mimeType = 'image/jpeg', caseTitle = 'Uploaded Patch Scan' } = req.body || {};
   const apiKey = (process.env.GEMINI_API_KEY || '').trim();
@@ -200,31 +200,58 @@ app.post('/api/analyze-patch', async (req, res) => {
     return res.status(400).json({ error: 'No image data provided' });
   }
 
-  const fallbackResult = {
-    case_title: caseTitle,
-    status: 'MONITORING',
-    area_cm2: '3.8 cm²',
-    observations: 'Depigmented patch boundary detected with clear margins. Continue consistent photo-tracking under uniform lighting.',
-    care_tip: 'Apply broad-spectrum SPF 50+ sunscreen daily and share longitudinal photos with your dermatologist.'
-  };
-
   if (!apiKey) {
-    return res.json({ ...fallbackResult, source: 'fallback' });
+    return res.json({
+      is_skin: false,
+      case_title: caseTitle,
+      status: 'API KEY MISSING',
+      confidence: '0%',
+      area_cm2: '0 cm²',
+      border_index: 'N/A',
+      repigmentation: 'N/A',
+      observations: 'GEMINI_API_KEY is missing in Render Environment settings.',
+      care_tip: 'Add GEMINI_API_KEY on Render to enable live Vision analysis.'
+    });
   }
 
-  const visionPrompt = `You are a supportive dermatological screening assistant on the Vitiverse app. Analyze this uploaded skin photo strictly for educational visual tracking (never give a definitive medical diagnosis).
-Return ONLY valid raw JSON (no markdown fences) with these exact keys:
+  const visionPrompt = `You are a dermatological computer-vision assistant on the Vitiverse app.
+First, check if this image actually shows real human skin (not a cartoon, anime, superhero illustration, meme, object, animal, text screenshot, or landscape).
+
+Return ONLY valid raw JSON (no markdown fences) matching this exact schema:
 {
-  "status": "STABLE" or "REPIGMENTING" or "ACTIVE",
-  "area_cm2": "estimated relative patch area like 3.4 cm²",
-  "observations": "2 concise sentences describing visible border contrast, uniformity, or follicular repigmentation dots",
-  "care_tip": "1 supportive, non-prescriptive skincare/sun-protection tip"
+  "is_skin": true or false,
+  "status": "INVALID IMAGE (NOT HUMAN SKIN)" if is_skin is false, otherwise one of "ACTIVE PATCH" or "STABLE PATCH" or "REPIGMENTING",
+  "confidence": "0%" if is_skin is false, otherwise a realistic percentage like "91.4%",
+  "area_cm2": "0.0 cm²" if is_skin is false, otherwise estimated patch area like "3.4 cm²",
+  "border_index": "N/A (Non-Skin Object)" if is_skin is false, otherwise e.g. "78% (Well-Defined)" or "44% (Diffused Rim)",
+  "repigmentation": "N/A" if is_skin is false, otherwise e.g. "22% Follicular Dots" or "5% Minimal",
+  "observations": "If is_skin is false, state clearly what is actually in the image (e.g., 'Illustration/character artwork detected rather than real human skin.') and ask for a clear skin photo. If is_skin is true, give 2 concise educational sentences on visible pigment contrast and border margins.",
+  "care_tip": "If is_skin is false, say 'Upload a well-lit close-up photo of the skin area to run pigment analysis.' Otherwise give 1 supportive SPF/skincare tip."
 }`;
 
-  const models = ['gemini-3.8-flash', 'gemini-2.5-flash-lite'];
-  for (const model of models) {
+  let candidateModels = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-2.5-flash-lite'];
+  try {
+    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
+    if (listRes.ok) {
+      const listData = await listRes.json();
+      const available = (listData.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map(m => m.name.replace('models/', ''))
+        .filter(name => name.includes('gemini') && !name.includes('embedding') && !name.includes('tts'));
+      if (available.length > 0) {
+        const prioritized = [
+          ...available.filter(n => n.includes('3.8-flash')),
+          ...available.filter(n => n.includes('2.5-flash') && !n.includes('lite')),
+          ...available.filter(n => n.includes('flash'))
+        ];
+        candidateModels = [...new Set([...prioritized, ...available])].slice(0, 5);
+      }
+    }
+  } catch {}
+
+  for (const model of candidateModels) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
+    const timer = setTimeout(() => controller.abort(), 18000);
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
       const apiRes = await fetch(url, {
@@ -247,11 +274,15 @@ Return ONLY valid raw JSON (no markdown fences) with these exact keys:
       if (apiRes.ok && cleaned) {
         const parsed = JSON.parse(cleaned);
         return res.json({
+          is_skin: Boolean(parsed.is_skin),
           case_title: caseTitle,
-          status: parsed.status || 'ACTIVE',
-          area_cm2: parsed.area_cm2 || '4.1 cm²',
-          observations: parsed.observations || fallbackResult.observations,
-          care_tip: parsed.care_tip || fallbackResult.care_tip,
+          status: parsed.status || (parsed.is_skin ? 'ACTIVE PATCH' : 'INVALID IMAGE (NOT HUMAN SKIN)'),
+          confidence: parsed.confidence || (parsed.is_skin ? '92.0%' : '0%'),
+          area_cm2: parsed.area_cm2 || '0.0 cm²',
+          border_index: parsed.border_index || 'N/A',
+          repigmentation: parsed.repigmentation || 'N/A',
+          observations: parsed.observations || 'Visual analysis complete.',
+          care_tip: parsed.care_tip || 'Consult a dermatologist for medical guidance.',
           model
         });
       }
@@ -261,9 +292,18 @@ Return ONLY valid raw JSON (no markdown fences) with these exact keys:
     }
   }
 
-  res.json({ ...fallbackResult, source: 'fallback' });
+  res.status(502).json({
+    is_skin: false,
+    case_title: caseTitle,
+    status: 'VISION SERVER BUSY',
+    confidence: '0%',
+    area_cm2: '0.0 cm²',
+    border_index: 'N/A',
+    repigmentation: 'N/A',
+    observations: 'Gemini Vision timed out while waking up—please re-upload the image in a few seconds.',
+    care_tip: 'Ensure a clear, well-lit image under 8 MB.'
+  });
 });
-
 // VitiBuddy AI Chat (True Multilingual Open-Ended Gemini AI + Auto-Discovery)
 app.post('/api/chat', async (req, res) => {
   const msg = (req.body?.message || '').trim();
