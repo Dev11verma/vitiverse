@@ -1551,10 +1551,10 @@
   });
 
   const findDiagnosticCard = () => {
-    const candidates = Array.from(document.querySelectorAll('div, section')).filter(el =>
-      el.textContent.includes('AI DIAGNOSTIC OUTPUT') &&
-      el.textContent.includes('Border Sharpness Index')
-    );
+    const candidates = Array.from(document.querySelectorAll('div, section')).filter(el => {
+      const txt = el.textContent.toLowerCase();
+      return txt.includes('ai diagnostic output') && txt.includes('border sharpness index');
+    });
     return candidates.sort((a, b) => a.innerHTML.length - b.innerHTML.length)[0];
   };
 
