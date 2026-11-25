@@ -1497,13 +1497,47 @@ document.addEventListener('DOMContentLoaded', () => {
   const fileInput = document.querySelector('input[type="file"]');
   if (!fileInput) return;
 
-  // Locate the real AI DIAGNOSTIC OUTPUT card on the page
+  // Compress & resize any image to max 1024px JPEG (~120KB) for instant, reliable Vision API uploads
+  const compressImage = (file) => new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (e) => { img.src = e.target.result; };
+    reader.onerror = reject;
+    img.onload = () => {
+      const maxDim = 1024;
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.86);
+      resolve(dataUrl.split(',')[1]);
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  // Find the exact innermost AI DIAGNOSTIC OUTPUT card
   const findDiagnosticCard = () => {
-    const allEls = Array.from(document.querySelectorAll('div, section'));
-    return allEls.find(el => el.textContent.includes('AI DIAGNOSTIC OUTPUT') && el.textContent.includes('Border Sharpness Index'));
+    const candidates = Array.from(document.querySelectorAll('div, section')).filter(el =>
+      el.textContent.includes('AI DIAGNOSTIC OUTPUT') &&
+      el.textContent.includes('Border Sharpness Index')
+    );
+    // Pick the deepest (most specific) container so outer layout wrappers aren't overwritten
+    return candidates.sort((a, b) => a.innerHTML.length - b.innerHTML.length)[0];
   };
 
-  fileInput.addEventListener('change', (e) => {
+  fileInput.addEventListener('change', async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -1514,85 +1548,88 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="text-xs font-bold tracking-wider text-slate-400 uppercase">AI DIAGNOSTIC OUTPUT</span>
           <span class="px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-semibold animate-pulse">Scanning via Gemini Vision...</span>
         </div>
-        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-2">
-          <div class="text-sm font-bold text-slate-700">Analyzing ${file.name}...</div>
-          <p class="text-xs text-slate-500">Verifying human skin region, melanin contrast, and border margins.</p>
+        <div class="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-2">
+          <div class="text-sm font-bold text-slate-800">Inspecting "${file.name}"...</div>
+          <p class="text-xs text-slate-500">Verifying real human skin texture, melanin contrast &amp; border margins.</p>
         </div>
       `;
     }
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64 = reader.result.split(',')[1];
+    try {
+      const base64 = await compressImage(file);
       const baseUrl = (typeof API_BASE !== 'undefined') ? API_BASE : 'https://vitiverse.onrender.com/api';
 
-      try {
-        const res = await fetch(`${baseUrl}/analyze-patch`, {
+      const res = await fetch(`${baseUrl}/analyze-patch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: base64,
+          mimeType: 'image/jpeg',
+          caseTitle: file.name.replace(/\.[^/.]+$/, '') || 'Skin Patch Scan'
+        })
+      });
+      const ai = await res.json();
+
+      const isSkin = ai.is_skin === true;
+      const boxStyle = !isSkin
+        ? 'bg-rose-50 border-rose-200 text-rose-900'
+        : (ai.status.includes('STABLE') || ai.status.includes('REPIGMENT') || ai.status.includes('NO DEPIGMENTATION')
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+            : 'bg-amber-50 border-amber-200 text-amber-900');
+
+      const badgeStyle = !isSkin
+        ? 'bg-rose-100 text-rose-700'
+        : 'bg-teal-50 text-teal-700';
+
+      if (card) {
+        card.innerHTML = `
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+            <span class="text-xs font-bold tracking-wider text-slate-400 uppercase">AI DIAGNOSTIC OUTPUT</span>
+            <span class="px-3 py-1 rounded-full ${badgeStyle} text-xs font-semibold">Confidence: ${ai.confidence}</span>
+          </div>
+          <div class="p-4 rounded-2xl border ${boxStyle} space-y-2 mb-4">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs font-extrabold tracking-wide uppercase">STATUS: ${ai.status}</span>
+              <span class="text-xs font-bold whitespace-nowrap">${ai.area_cm2}</span>
+            </div>
+            <p class="text-xs leading-relaxed opacity-90">${ai.observations}</p>
+          </div>
+          <div class="space-y-2.5 text-xs mb-4">
+            <div class="flex justify-between py-1.5 border-b border-slate-100">
+              <span class="text-slate-500">Border Sharpness Index</span>
+              <span class="font-bold text-slate-800">${ai.border_index}</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-slate-100">
+              <span class="text-slate-500">Repigmentation / Follicular Islands</span>
+              <span class="font-bold text-indigo-600">${ai.repigmentation}</span>
+            </div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-50 text-xs text-slate-600 mb-4">
+            <span class="font-semibold text-slate-800">💡 Guidance:</span> ${ai.care_tip}
+          </div>
+          ${isSkin
+            ? `<div class="w-full py-2.5 rounded-xl bg-emerald-600 text-white text-center text-xs font-semibold">✓ Verified Skin Scan Saved to MongoDB Diary</div>`
+            : `<div class="w-full py-2.5 rounded-xl bg-slate-200 text-slate-600 text-center text-xs font-semibold">Scan Not Saved — Upload a Real Skin Photo</div>`
+          }
+        `;
+      }
+
+      if (isSkin) {
+        await fetch(`${baseUrl}/scans`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            imageBase64: base64,
-            mimeType: file.type || 'image/jpeg',
-            caseTitle: file.name.replace(/\.[^/.]+$/, '') || 'Skin Patch Scan'
+            case_title: ai.case_title,
+            status: ai.status,
+            area_cm2: ai.area_cm2
           })
         });
-        const ai = await res.json();
-
-        const isSkin = ai.is_skin !== false;
-        const boxStyle = !isSkin
-          ? 'bg-rose-50 border-rose-200 text-rose-900'
-          : (ai.status.includes('STABLE') || ai.status.includes('REPIGMENT')
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-              : 'bg-amber-50 border-amber-200 text-amber-900');
-
-        if (card) {
-          card.innerHTML = `
-            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-              <span class="text-xs font-bold tracking-wider text-slate-400 uppercase">AI DIAGNOSTIC OUTPUT</span>
-              <span class="px-3 py-1 rounded-full bg-teal-50 text-teal-700 text-xs font-semibold">Confidence: ${ai.confidence}</span>
-            </div>
-            <div class="p-4 rounded-2xl border ${boxStyle} space-y-2 mb-4">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-extrabold tracking-wide uppercase">STATUS: ${ai.status}</span>
-                <span class="text-xs font-bold">${ai.area_cm2}</span>
-              </div>
-              <p class="text-xs leading-relaxed opacity-90">${ai.observations}</p>
-            </div>
-            <div class="space-y-2.5 text-xs mb-4">
-              <div class="flex justify-between py-1.5 border-b border-slate-100">
-                <span class="text-slate-500">Border Sharpness Index</span>
-                <span class="font-bold text-slate-800">${ai.border_index}</span>
-              </div>
-              <div class="flex justify-between py-1.5 border-b border-slate-100">
-                <span class="text-slate-500">Repigmentation / Follicular Islands</span>
-                <span class="font-bold text-indigo-600">${ai.repigmentation}</span>
-              </div>
-            </div>
-            <div class="p-3 rounded-xl bg-slate-50 text-xs text-slate-600">
-              <span class="font-semibold text-slate-800">💡 Guidance:</span> ${ai.care_tip}
-            </div>
-          `;
-        }
-
-        // Only save valid human skin scans to MongoDB Skin Diary
-        if (isSkin) {
-          await fetch(`${baseUrl}/scans`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              case_title: ai.case_title,
-              status: ai.status,
-              area_cm2: ai.area_cm2
-            })
-          });
-        }
-      } catch (err) {
-        if (card) {
-          card.innerHTML = `<div class="p-4 rounded-xl bg-rose-50 text-rose-700 text-xs">⚠️ Could not connect to Vision AI. Please try again.</div>`;
-        }
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      if (card) {
+        card.innerHTML = `<div class="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium">⚠️ Network timeout while reaching Vision AI. Please re-select the photo to retry.</div>`;
+      }
+    }
   });
 });
 </script>

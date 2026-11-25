@@ -191,7 +191,7 @@ app.post('/api/appointments', async (req, res) => {
   res.status(201).json(item);
 });
 
-// Module 01: Real Gemini Vision Skin Patch Analysis (With Non-Skin Detection & Auto-Discovery)
+// Module 01: Real Gemini Vision Skin Patch Analysis (Strict Skin Gate + Native JSON Mode)
 app.post('/api/analyze-patch', async (req, res) => {
   const { imageBase64 = '', mimeType = 'image/jpeg', caseTitle = 'Uploaded Patch Scan' } = req.body || {};
   const apiKey = (process.env.GEMINI_API_KEY || '').trim();
@@ -201,33 +201,29 @@ app.post('/api/analyze-patch', async (req, res) => {
   }
 
   if (!apiKey) {
-    return res.json({
+    return res.status(500).json({
       is_skin: false,
       case_title: caseTitle,
       status: 'API KEY MISSING',
       confidence: '0%',
-      area_cm2: '0 cm²',
+      area_cm2: '0.0 cm²',
       border_index: 'N/A',
       repigmentation: 'N/A',
-      observations: 'GEMINI_API_KEY is missing in Render Environment settings.',
-      care_tip: 'Add GEMINI_API_KEY on Render to enable live Vision analysis.'
+      observations: 'GEMINI_API_KEY is not configured on Render.',
+      care_tip: 'Add GEMINI_API_KEY in Render Environment settings.'
     });
   }
 
-  const visionPrompt = `You are a dermatological computer-vision assistant on the Vitiverse app.
-First, check if this image actually shows real human skin (not a cartoon, anime, superhero illustration, meme, object, animal, text screenshot, or landscape).
+  const visionPrompt = `You are a strict dermatological image-screening engine for the Vitiverse platform.
+STEP 1 (STRICT VALIDATION): Inspect whether this image is a genuine photograph of real human skin (showing real skin texture, pores, hair follicles, or epidermis).
+- If it is artwork, a comic character (e.g., Doctor Doom), cartoon, anime, 3D render, animal, object, landscape, food, text/screenshot, or too blurry/dark to see skin texture, you MUST set "is_skin": false.
+- Only set "is_skin": true if real human skin is clearly visible.
 
-Return ONLY valid raw JSON (no markdown fences) matching this exact schema:
-{
-  "is_skin": true or false,
-  "status": "INVALID IMAGE (NOT HUMAN SKIN)" if is_skin is false, otherwise one of "ACTIVE PATCH" or "STABLE PATCH" or "REPIGMENTING",
-  "confidence": "0%" if is_skin is false, otherwise a realistic percentage like "91.4%",
-  "area_cm2": "0.0 cm²" if is_skin is false, otherwise estimated patch area like "3.4 cm²",
-  "border_index": "N/A (Non-Skin Object)" if is_skin is false, otherwise e.g. "78% (Well-Defined)" or "44% (Diffused Rim)",
-  "repigmentation": "N/A" if is_skin is false, otherwise e.g. "22% Follicular Dots" or "5% Minimal",
-  "observations": "If is_skin is false, state clearly what is actually in the image (e.g., 'Illustration/character artwork detected rather than real human skin.') and ask for a clear skin photo. If is_skin is true, give 2 concise educational sentences on visible pigment contrast and border margins.",
-  "care_tip": "If is_skin is false, say 'Upload a well-lit close-up photo of the skin area to run pigment analysis.' Otherwise give 1 supportive SPF/skincare tip."
-}`;
+STEP 2 (PIGMENT ASSESSMENT):
+- If "is_skin" is false: set "status" to "INVALID IMAGE (NOT HUMAN SKIN)", "confidence" to "0%", "area_cm2" to "0.0 cm²", "border_index" to "N/A (Non-Skin Input)", "repigmentation" to "N/A", "observations" to a direct 1-2 sentence description of what is actually shown in the image and why it cannot be analyzed as skin, and "care_tip" to "Upload a clear, well-lit close-up photo of real human skin to run pigment tracking."
+- If "is_skin" is true: evaluate visible depigmentation/hypopigmentation vs. uniform skin tone. Set "status" to "ACTIVE PATCH" (if feathered/ill-defined borders), "STABLE PATCH" (if sharp, well-demarcated borders), "REPIGMENTING" (if perifollicular pigment dots are visible inside the patch), or "NO DEPIGMENTATION DETECTED" (if uniform healthy skin). Provide realistic "confidence" (e.g. "93.5%"), "area_cm2" (e.g. "3.2 cm²" or "0.0 cm²" if uniform skin), "border_index", "repigmentation", 2 concise educational sentences in "observations", and 1 practical SPF/skincare tip in "care_tip".
+
+Return ONLY a JSON object with keys: is_skin, status, confidence, area_cm2, border_index, repigmentation, observations, care_tip.`;
 
   let candidateModels = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-2.5-flash-lite'];
   try {
@@ -251,7 +247,7 @@ Return ONLY valid raw JSON (no markdown fences) matching this exact schema:
 
   for (const model of candidateModels) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 18000);
+    const timer = setTimeout(() => controller.abort(), 20000);
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
       const apiRes = await fetch(url, {
@@ -264,7 +260,11 @@ Return ONLY valid raw JSON (no markdown fences) matching this exact schema:
               { text: visionPrompt },
               { inlineData: { mimeType, data: imageBase64 } }
             ]
-          }]
+          }],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: 'application/json'
+          }
         })
       });
       clearTimeout(timer);
@@ -273,16 +273,17 @@ Return ONLY valid raw JSON (no markdown fences) matching this exact schema:
       const cleaned = rawText.replace(/```json|```/gi, '').trim();
       if (apiRes.ok && cleaned) {
         const parsed = JSON.parse(cleaned);
+        const isSkin = Boolean(parsed.is_skin);
         return res.json({
-          is_skin: Boolean(parsed.is_skin),
+          is_skin: isSkin,
           case_title: caseTitle,
-          status: parsed.status || (parsed.is_skin ? 'ACTIVE PATCH' : 'INVALID IMAGE (NOT HUMAN SKIN)'),
-          confidence: parsed.confidence || (parsed.is_skin ? '92.0%' : '0%'),
+          status: parsed.status || (isSkin ? 'ACTIVE PATCH' : 'INVALID IMAGE (NOT HUMAN SKIN)'),
+          confidence: parsed.confidence || (isSkin ? '92.0%' : '0%'),
           area_cm2: parsed.area_cm2 || '0.0 cm²',
           border_index: parsed.border_index || 'N/A',
           repigmentation: parsed.repigmentation || 'N/A',
-          observations: parsed.observations || 'Visual analysis complete.',
-          care_tip: parsed.care_tip || 'Consult a dermatologist for medical guidance.',
+          observations: parsed.observations || 'Visual screening complete.',
+          care_tip: parsed.care_tip || 'Apply SPF 50+ sunscreen daily and consult a dermatologist.',
           model
         });
       }
@@ -295,13 +296,13 @@ Return ONLY valid raw JSON (no markdown fences) matching this exact schema:
   res.status(502).json({
     is_skin: false,
     case_title: caseTitle,
-    status: 'VISION SERVER BUSY',
+    status: 'VISION SERVICE RETRYING',
     confidence: '0%',
     area_cm2: '0.0 cm²',
     border_index: 'N/A',
     repigmentation: 'N/A',
-    observations: 'Gemini Vision timed out while waking up—please re-upload the image in a few seconds.',
-    care_tip: 'Ensure a clear, well-lit image under 8 MB.'
+    observations: 'The Vision server took too long to wake up. Please re-select your image once to run the live scan.',
+    care_tip: 'Tip: Keep the server warm or retry within a few seconds.'
   });
 });
 // VitiBuddy AI Chat (True Multilingual Open-Ended Gemini AI + Auto-Discovery)
